@@ -66,6 +66,7 @@ import lombok.val;
  */
 public class Notifications extends IntentService {
     public static final long[] vibratePattern = {0, 1000, 300, 1000, 300, 1000};
+    public static final long[] lowAlertVibratePattern = {0, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50};
     public static boolean bg_notifications;
     public static boolean bg_notifications_watch;
     public static boolean bg_persistent_high_alert_enabled_watch;
@@ -1019,7 +1020,12 @@ public class Notifications extends IntentService {
 
             boolean localOnly =false;
             if (notificatioId == persistentHighAlertNotificationId) {
-                localOnly = (Home.get_forced_wear() && bg_notifications_watch && bg_persistent_high_alert_enabled_watch);
+                // bg_notifications_watch already reflects whether the watch will raise this
+                // itself (covers watch_alert_mode "always" and "out_of_range") - gating on
+                // Home.get_forced_wear() too meant this was only ever true while the watch was
+                // the forced BLE collector, so "always" mode never suppressed the phone's own
+                // copy, producing a duplicate on the watch.
+                localOnly = (bg_notifications_watch && bg_persistent_high_alert_enabled_watch);
             }
             Log.d(TAG,"OtherAlert forced_wear localOnly=" + localOnly);
             Intent intent = new Intent(context, Home.class);

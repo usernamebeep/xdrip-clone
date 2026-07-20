@@ -4,10 +4,13 @@ package com.eveningoutpost.dexdrip.g5model;
 
 import android.util.SparseArray;
 
+import com.eveningoutpost.dexdrip.R;
 import com.eveningoutpost.dexdrip.models.UserError;
+import com.eveningoutpost.dexdrip.xdrip;
 import com.google.common.collect.ImmutableSet;
 
 import lombok.Getter;
+import lombok.val;
 
 import static com.eveningoutpost.dexdrip.services.G5CollectionService.TAG;
 
@@ -37,22 +40,50 @@ public enum CalibrationState {
     SensorFailed4(0x13, "Sensor Failed 4"),
     SensorFailed5(0x14, "Sensor Failed 5"),
     SensorFailed6(0x15, "Sensor Failed 6"),
-    SensorFailedStart(0x16, "Sensor Failed Start");
+    SensorFailedStart(0x16, "Sensor Failed Start"),
+    SensorFailedStart2(0x17, "Sensor Failed Start 2"),
+    SensorExpired(0x18, "Sensor Expired"),
+    SensorFailed7(0x19, "Sensor Failed 7"),
+    SensorStopped2(0x1A, "Sensor Stopped 2"),
+    SensorFailed8(0x1B, "Sensor Failed 8"),
+    SensorFailed9(0x1C, "Sensor Failed 9"),
+    SensorFailed10(0x1D, "Sensor Failed 10"),
+    SensorFailed11(0x1E, "Sensor Failed 11"),
+    SensorStarted(0xC1, "Sensor Started"),
+    SensorStopped(0xC2, "Sensor Stopped", R.string.ob1_sensor_stopped),
+    CalibrationSent(0xC3, "Calibration Sent");
 
     @Getter
-    byte value;
+    final byte value;
+    final String text;
     @Getter
-    String text;
+    final int stringId;
 
+    public String getText() {
+        if (stringId == 0) {
+            return text;
+        } else {
+            val context = xdrip.getAppContext();
+            if (context == null) return text;
+            return context.getString(stringId);
+        }
+    }
 
     private static final SparseArray<CalibrationState> lookup = new SparseArray<>();
-    private static final ImmutableSet<CalibrationState> failed = ImmutableSet.of(SensorFailed, SensorFailed2, SensorFailed3, SensorFailed4, SensorFailed5, SensorFailed6, SensorFailedStart);
-    private static final ImmutableSet<CalibrationState> stopped = ImmutableSet.of(Stopped, Ended, SensorFailed, SensorFailed2, SensorFailed3, SensorFailed4, SensorFailed5, SensorFailed6, SensorFailedStart);
+    private static final ImmutableSet<CalibrationState> failed = ImmutableSet.of(SensorFailed, SensorFailed2, SensorFailed3, SensorFailed4, SensorFailed5, SensorFailed6, SensorFailed7, SensorFailed8, SensorFailed9, SensorFailed10, SensorFailedStart);
+    private static final ImmutableSet<CalibrationState> stopped = ImmutableSet.of(Stopped, Ended, SensorExpired, SensorFailed, SensorFailed2, SensorFailed3, SensorFailed4, SensorFailed5, SensorFailed6, SensorFailed7, SensorFailed8, SensorFailed9, SensorFailed10, SensorFailedStart, SensorStopped, SensorStopped2);
+    private static final ImmutableSet<CalibrationState> transitional = ImmutableSet.of(WarmingUp, SensorStarted, SensorStopped, CalibrationSent);
 
 
     CalibrationState(int value, String text) {
         this.value = (byte) value;
         this.text = text;
+        this.stringId = 0;
+    }
+    CalibrationState(int value, String text, int stringId) {
+        this.value = (byte) value;
+        this.text = text;
+        this.stringId = stringId;
     }
 
     static {
@@ -74,6 +105,10 @@ public enum CalibrationState {
     public boolean usableGlucose() {
         return this == Ok
                 || this == NeedsCalibration;
+    }
+
+    public boolean warmUpOrOkay() {
+        return this == WarmingUp || this == Ok;
     }
 
     public boolean insufficientCalibration() {
@@ -108,14 +143,17 @@ public enum CalibrationState {
         return this == WarmingUp;
     }
 
+    public boolean transitional() { return transitional.contains(this); }
+
     public boolean ok() {
         return this == Ok;
     }
 
     public boolean readyForBackfill() {
-       return this != WarmingUp && this != Stopped && this != Unknown && this != NeedsFirstCalibration && this != NeedsSecondCalibration && this != Errors;
+        return this != WarmingUp && this != Stopped && this != Unknown && this != NeedsFirstCalibration && this != NeedsSecondCalibration && this != Errors;
     }
 
+    // TODO i18n
     public String getExtendedText() {
         switch (this) {
             case Ok:

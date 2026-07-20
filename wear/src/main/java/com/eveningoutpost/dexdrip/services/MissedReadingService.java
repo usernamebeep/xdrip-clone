@@ -19,6 +19,7 @@ import com.eveningoutpost.dexdrip.utilitymodels.CollectionServiceStarter;
 import com.eveningoutpost.dexdrip.utilitymodels.Notifications;
 //import com.eveningoutpost.dexdrip.UtilityModels.pebble.PebbleUtil;
 //import com.eveningoutpost.dexdrip.UtilityModels.pebble.PebbleWatchSync;
+import com.eveningoutpost.dexdrip.utilitymodels.AlertPlayer;
 import com.eveningoutpost.dexdrip.utilitymodels.Pref;
 import com.eveningoutpost.dexdrip.utils.DexCollectionType;
 //import com.eveningoutpost.dexdrip.wearintegration.WatchUpdaterService;
@@ -81,7 +82,7 @@ public class MissedReadingService extends IntentService {
         //BluetoothGlucoseMeter.immortality();
 
         bg_missed_alerts =  prefs.getBoolean("bg_missed_alerts", false);//KS TODO bg_missed_alerts pref not supported
-        if (!bg_missed_alerts || !Pref.getBoolean("bg_notifications", false)) {
+        if (!bg_missed_alerts || !AlertPlayer.watchAlertsEnabled()) {
             // we should not do anything in this case. if the ui, changes will be called again
             return;
         }
@@ -144,7 +145,7 @@ public class MissedReadingService extends IntentService {
         //Calendar calendar = Calendar.getInstance();
         //AlarmManager alarm = (AlarmManager) getSystemService(ALARM_SERVICE);
         //long wakeTime = calendar.getTimeInMillis() + alarmIn;
-        PendingIntent serviceIntent = PendingIntent.getService(this, 0, new Intent(this, this.getClass()), 0);
+        PendingIntent serviceIntent = PendingIntent.getService(this, 0, new Intent(this, this.getClass()), PendingIntent.FLAG_IMMUTABLE);
         JoH.wakeUpIntent(this, alarmIn, serviceIntent);
 
        /* if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

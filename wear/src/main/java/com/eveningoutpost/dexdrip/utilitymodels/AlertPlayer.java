@@ -1,21 +1,27 @@
 package com.eveningoutpost.dexdrip.utilitymodels;
 
+import android.Manifest;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.preference.PreferenceManager;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 
 import com.eveningoutpost.dexdrip.Home;
 import com.eveningoutpost.dexdrip.ListenerService;
+import com.eveningoutpost.dexdrip.LocationPermissionActivity;
 import com.eveningoutpost.dexdrip.models.ActiveBgAlert;
 import com.eveningoutpost.dexdrip.models.AlertType;
 import com.eveningoutpost.dexdrip.models.JoH;
@@ -105,6 +111,13 @@ public class AlertPlayer {
     private volatile MediaPlayer mediaPlayer = null;
     private int volumeBeforeAlert = -1;
     private int volumeForThisAlert = -1;
+
+    // Separate channel per direction so each keeps its own vibration pattern - channels are
+    // immutable after creation on Android O+, so a single shared channel could never switch
+    // between vibratePattern and lowAlertVibratePattern once created.
+    private static final String BG_ALERT_CHANNEL_HIGH = "xdrip_bg_alert_high";
+    private static final String BG_ALERT_CHANNEL_LOW = "xdrip_bg_alert_low";
+    private static volatile boolean bgAlertChannelsReady = false;
 
     final static int ALERT_PROFILE_HIGH = 1;
     final static int ALERT_PROFILE_ASCENDING = 2;
@@ -392,13 +405,25 @@ public class AlertPlayer {
     }
 
     private PendingIntent notificationIntent(Context ctx, Intent intent){
-        return PendingIntent.getActivity(ctx, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        return PendingIntent.getActivity(ctx, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
     }
     private PendingIntent snoozeIntent(Context ctx){
         Intent intent = new Intent(ctx, SnoozeOnNotificationDismissService.class);
         intent.putExtra("alertType", "bg_alerts");
-        return PendingIntent.getService(ctx, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        return PendingIntent.getService(ctx, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    // watch_alert_mode: "none" = never alert from the watch; "out_of_range" = only while the
+    // watch is the forced/standalone collector (phone unreachable); "always" = independently
+    // evaluate and raise BG alerts from whatever data the watch has, regardless of force_wearG5 -
+    // the phone may also raise its own alert at the same time; the user can disable notification
+    // bridging separately if they don't want to see both.
+    public static boolean watchAlertsEnabled() {
+        final String mode = Pref.getString("watch_alert_mode", "none");
+        if (mode.equals("always")) return true;
+        if (mode.equals("out_of_range")) return Home.get_forced_wear();
+        return false;
     }
 
     static private int getAlertProfile(Context ctx){
@@ -439,22 +464,58 @@ public class AlertPlayer {
         return !(Pref.getBooleanDefaultFalse("no_alarms_during_calls") && (JoH.isOngoingCall()));
     }
 
+    // From API 33 (Android 13) POST_NOTIFICATIONS is a runtime permission - without it every
+    // notification (including this one) is silently dropped, regardless of channel setup.
+    // Requesting it requires an Activity, so hand off to the same permission-prompt Activity
+    // already used for location/Bluetooth, rate-limited so it doesn't reopen on every alert.
+    private void ensureNotificationPermission(Context ctx) {
+        if (Build.VERSION.SDK_INT < 33) return;
+        if (ActivityCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) return;
+        if (JoH.ratelimit("notification_permission_prompt", 20)) {
+            Intent permissionIntent = new Intent(ctx, LocationPermissionActivity.class);
+            permissionIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(permissionIntent);
+        }
+    }
+
+    // On Android O+ a notification built without a valid channel id is silently dropped by the
+    // system (no vibration, no visible notification) - this was previously using the single-arg
+    // NotificationCompat.Builder(ctx) constructor, which never assigns one.
+    private void ensureBgAlertChannels(Context ctx) {
+        if (bgAlertChannelsReady || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        final NotificationManager mNotifyMgr = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        final NotificationChannel high = new NotificationChannel(BG_ALERT_CHANNEL_HIGH, "High BG Alerts", NotificationManager.IMPORTANCE_HIGH);
+        high.setVibrationPattern(Notifications.vibratePattern);
+        high.enableVibration(true);
+        mNotifyMgr.createNotificationChannel(high);
+        final NotificationChannel low = new NotificationChannel(BG_ALERT_CHANNEL_LOW, "Low BG Alerts", NotificationManager.IMPORTANCE_HIGH);
+        low.setVibrationPattern(Notifications.lowAlertVibratePattern);
+        low.enableVibration(true);
+        mNotifyMgr.createNotificationChannel(low);
+        bgAlertChannelsReady = true;
+    }
+
     private void Vibrate(Context ctx, AlertType alert, String bgValue, Boolean overrideSilent, int timeFromStartPlaying) {
         //KS Watch currently only supports Vibration, no audio; Use VibrateAudio to support audio
+        ensureNotificationPermission(ctx);
+        ensureBgAlertChannels(ctx);
         String title = bgValue + " " + alert.name;
         String content = "BG LEVEL ALERT: " + bgValue + "  (@" + JoH.hourMinuteString() + ")";
         Intent intent = new Intent(ctx, SnoozeActivity.class);
 
-        boolean localOnly = (Home.get_forced_wear() && Pref.getBooleanDefaultFalse("bg_notifications"));//KS
+        boolean localOnly = Home.get_forced_wear();//KS
         Log.d(TAG, "NotificationCompat.Builder localOnly=" + localOnly);
-        NotificationCompat.Builder  builder = new NotificationCompat.Builder(ctx)//KS Notification
+        final String channelId = alert.above ? BG_ALERT_CHANNEL_HIGH : BG_ALERT_CHANNEL_LOW;
+        NotificationCompat.Builder  builder = new NotificationCompat.Builder(ctx, channelId)//KS Notification
                 .setSmallIcon(R.drawable.ic_launcher)//KS ic_action_communication_invert_colors_on
                 .setContentTitle(title)
                 .setContentText(content)
                 .setContentIntent(notificationIntent(ctx, intent))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setLocalOnly(localOnly)//KS
                 .setDeleteIntent(snoozeIntent(ctx));
-        builder.setVibrate(Notifications.vibratePattern);
+        builder.setVibrate(alert.above ? Notifications.vibratePattern : Notifications.lowAlertVibratePattern);
         Log.ueh("Alerting",content);
         NotificationManager mNotifyMgr = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         //mNotifyMgr.cancel(Notifications.exportAlertNotificationId); // this appears to confuse android wear version 2.0.0.141773014.gms even though it shouldn't - can we survive without this?
@@ -491,7 +552,7 @@ public class AlertPlayer {
         String content = "BG LEVEL ALERT: " + bgValue + "  (@" + JoH.hourMinuteString() + ")";
         Intent intent = new Intent(ctx, SnoozeActivity.class);
 
-        boolean localOnly = (Home.get_forced_wear() && Pref.getBooleanDefaultFalse("bg_notifications"));//KS
+        boolean localOnly = Home.get_forced_wear();//KS
         Log.d(TAG, "NotificationCompat.Builder localOnly=" + localOnly);
         NotificationCompat.Builder  builder = new NotificationCompat.Builder(ctx)//KS Notification
             .setSmallIcon(R.drawable.ic_launcher)//KS ic_action_communication_invert_colors_on

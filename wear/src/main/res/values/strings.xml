@@ -87,8 +87,18 @@
     <string name="pref_summary_enable_wearG5">Connect to BT Collector when phone is out-of-range</string>
     <string name="pref_force_wearG5">Force Collector</string>
     <string name="pref_summary_force_wearG5">Force phone to use Wear Collection Service</string>
-    <string name="pref_bg_notifications">Enable Alerts</string>
-    <string name="pref_summary_bg_notifications">Enable BG alerts</string>
+    <string name="pref_watch_alert_mode">Enable Alerts</string>
+    <string name="pref_summary_watch_alert_mode">When the watch should raise its own BG alerts, based on phone-configured thresholds</string>
+    <string-array name="watch_alert_mode_entries">
+        <item>No alarms</item>
+        <item>When phone not in range</item>
+        <item>Always</item>
+    </string-array>
+    <string-array name="watch_alert_mode_values">
+        <item>none</item>
+        <item>out_of_range</item>
+        <item>always</item>
+    </string-array>
     <string name="pref_persistent_high_alert_enabled">High Alerts</string>
     <string name="pref_summary_persistent_high_alert_enabled">Enable Persistent High alerts</string>
     <string name="pref_run_ble_scan_constantly">Scan for G5</string>
@@ -168,6 +178,17 @@
     <string name="location_not_found_message">For Bluetooth discovery to work on newer devices, location must be enabled. xDrip does not track your location and it can be disabled after pairing is successful.</string>
     <string name="location_yes">Enable</string>
     <string name="no">No</string>
+    <string name="yes">Yes</string>
+    <string name="auto_starting_sensor">Auto starting sensor!</string>
+    <string name="ob1_sensor_stopped">Sensor Stopped</string>
+    <string name="expires_days">{0, choice,0#Sensor Expired!|1#Ends in {0, number} day|1&lt;Ends in {0, number} days}</string>
+    <string name="expires_at">Ends {0}</string>
+    <string name="invalid_transmitter_id">Invalid transmitter ID</string>
+    <string name="you_entered">You entered:</string>
+    <string name="fixed_version">Fixed version:</string>
+    <string name="click">Click</string>
+    <string name="to_use_this_instead">to use this instead?</string>
+    <string name="the_transmitter_id_you_have_entered_is_incorrect">The transmitter ID or pairing code you have entered is incorrect and would not work.\n\nPlease double-check the details and try again.</string>
 
     <string name="persistent_high_for_greater_than">Persistent High for > </string>
     <string name="space_mins">" mins"</string>

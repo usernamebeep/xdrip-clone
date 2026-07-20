@@ -137,7 +137,7 @@ public class HeartRateService extends IntentService {
             if (future < 0) future = 5000;
             UserError.Log.d(TAG, "Scheduling wakeup @ " + JoH.dateTimeText(JoH.tsl() + future) + " (" + info + ")");
             if (pendingIntent == null)
-                pendingIntent = PendingIntent.getService(xdrip.getAppContext(), 0, new Intent(xdrip.getAppContext(), HeartRateService.class), 0);
+                pendingIntent = PendingIntent.getService(xdrip.getAppContext(), 0, new Intent(xdrip.getAppContext(), HeartRateService.class), PendingIntent.FLAG_IMMUTABLE);
             wakeup_time = JoH.tsl() + future;
             JoH.wakeUpIntent(xdrip.getAppContext(), future, pendingIntent);
         } else {

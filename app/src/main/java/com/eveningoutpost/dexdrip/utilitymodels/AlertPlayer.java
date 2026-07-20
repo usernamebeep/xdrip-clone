@@ -531,7 +531,12 @@ public class AlertPlayer {
         String contentLog = "BG " + highlowLog + " ALERT: " + bgValue + "  (@" + JoH.hourMinuteString() + ")";
         final Intent intent = new Intent(context, SnoozeActivity.class);
 
-        boolean localOnly = (Home.get_forced_wear() && PersistentStore.getBoolean("bg_notifications_watch"));
+        // bg_notifications_watch already reflects whether the watch will raise this alert itself
+        // (covers watch_alert_mode "always" and "out_of_range", the latter checking forced-wear
+        // internally) - gating on Home.get_forced_wear() here too meant this was only ever true
+        // while the watch was actively the forced BLE collector, so "always" mode (the common
+        // case) never suppressed the phone's own copy, producing a duplicate on the watch.
+        boolean localOnly = PersistentStore.getBoolean("bg_notifications_watch");
         Log.d(TAG, "NotificationCompat.Builder localOnly=" + localOnly);
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationChannels.BG_ALERT_CHANNEL)//KS Notification
                 .setSmallIcon(R.drawable.ic_action_communication_invert_colors_on)
@@ -585,7 +590,7 @@ public class AlertPlayer {
         }
         if (profile != ALERT_PROFILE_SILENT && alert.vibrate) {
             if (notSilencedDueToCall()) {
-                builder.setVibrate(Notifications.vibratePattern);
+                builder.setVibrate(alert.above ? Notifications.vibratePattern : Notifications.lowAlertVibratePattern);
             } else {
                 Log.i(TAG, "Vibration silenced due to ongoing call");
             }

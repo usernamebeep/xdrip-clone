@@ -13,6 +13,11 @@ public class WearSyncBooleans {
     private static final List<String> booleansToSync = new ArrayList<>();
 
     static {
+        // Without this, the watch's local copy of "wear_sync" is always its default (false),
+        // since it's otherwise only read/written on the phone - leaving wear/CollectionServiceStarter's
+        // "are we in phone+watch hybrid mode" check permanently dead, so the watch always free-runs
+        // its own BLE collector instead of respecting enable_wearG5/force_wearG5.
+        booleansToSync.add("wear_sync");
         booleansToSync.add("use_wear_heartrate");
         booleansToSync.add("engineering_mode");
         booleansToSync.add("allow_testing_with_dead_sensor");

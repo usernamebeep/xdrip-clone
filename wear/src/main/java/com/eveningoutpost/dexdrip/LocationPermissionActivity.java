@@ -2,6 +2,7 @@ package com.eveningoutpost.dexdrip;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
@@ -33,9 +34,23 @@ public class LocationPermissionActivity extends WearableActivity {//KS
         Log.d(TAG, "onClickEnablePermission()");
 
         // On 23+ (M+) devices, GPS permission not granted. Request permission.
+        // On 31+ (Android 12+) devices, Bluetooth access also needs its own runtime
+        // permissions - without these, BLE scanning/connection silently fails even with
+        // location granted.
+        // On 33+ (Android 13+) devices, notifications also need their own runtime permission -
+        // without it, every alert/status notification is silently dropped.
+        final java.util.List<String> permissions = new java.util.ArrayList<>();
+        permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        if (Build.VERSION.SDK_INT >= 31) {
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN);
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS);
+        }
         ActivityCompat.requestPermissions(
                 this,
-                new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                permissions.toArray(new String[0]),
                 PERMISSION_REQUEST_FINE_LOCATION);
 
     }
@@ -50,8 +65,11 @@ public class LocationPermissionActivity extends WearableActivity {//KS
         Log.d(TAG, "onRequestPermissionsResult()");
 
         if (requestCode == PERMISSION_REQUEST_FINE_LOCATION) {
-            if ((grantResults.length == 1)
-                    && (grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+            boolean allGranted = grantResults.length > 0;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) allGranted = false;
+            }
+            if (allGranted) {
                 Log.i(TAG, "onRequestPermissionsResult() granted");
                 finish();
             }

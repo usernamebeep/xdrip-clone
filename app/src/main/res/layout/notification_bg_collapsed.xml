@@ -3,28 +3,36 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <ImageView
-        android:id="@+id/notification_image"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_margin="0dp"
-        android:adjustViewBounds="true"
-        android:contentDescription="Blood Glucose Graph"
-        android:scaleType="fitEnd" />
-
-    <TextView
-        android:id="@+id/notification_title"
+    <LinearLayout
+        android:id="@+id/notification_text_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
-        android:textAppearance="@style/TextAppearance.Compat.Notification.Title" />
+        android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/notification_summary"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/notification_title"
-        android:layout_alignParentStart="true"
-        android:textAppearance="@style/TextAppearance.Compat.Notification.Media" />
+        <TextView
+            android:id="@+id/notification_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.Compat.Notification.Title" />
+
+        <TextView
+            android:id="@+id/notification_summary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.Compat.Notification.Media" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/notification_image"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_toEndOf="@id/notification_text_container"
+        android:layout_alignParentEnd="true"
+        android:layout_marginStart="8dp"
+        android:adjustViewBounds="true"
+        android:contentDescription="Blood Glucose Graph"
+        android:scaleType="fitEnd" />
+
 </RelativeLayout>

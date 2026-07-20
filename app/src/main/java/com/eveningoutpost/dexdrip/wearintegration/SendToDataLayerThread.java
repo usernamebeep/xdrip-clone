@@ -1,20 +1,18 @@
 package com.eveningoutpost.dexdrip.wearintegration;
 
+import android.content.Context;
 import android.os.AsyncTask;
 import android.util.Log;
 
 import com.eveningoutpost.dexdrip.Home;
 import com.eveningoutpost.dexdrip.models.JoH;
 import com.eveningoutpost.dexdrip.models.UserError;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.tasks.Tasks;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.Node;
-import com.google.android.gms.wearable.NodeApi;
-import com.google.android.gms.wearable.PutDataMapRequest;
-import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -22,7 +20,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * Created by Emma Black on 12/26/14.
  */
 class SendToDataLayerThread extends AsyncTask<DataMap,Void,Void> {
-    private GoogleApiClient googleApiClient;
+    private final Context context;
     private static int concurrency = 0;
     private static int state = 0;
     private static final String TAG = "jamorham wear";
@@ -31,9 +29,9 @@ class SendToDataLayerThread extends AsyncTask<DataMap,Void,Void> {
     private static final boolean testlockup = false; // always false in production
     String path;
 
-    SendToDataLayerThread(String path, GoogleApiClient pGoogleApiClient) {
+    SendToDataLayerThread(String path, Context context) {
         this.path = path;
-        googleApiClient = pGoogleApiClient;
+        this.context = context.getApplicationContext();
     }
 
     @Override
@@ -78,32 +76,44 @@ class SendToDataLayerThread extends AsyncTask<DataMap,Void,Void> {
                 UserError.Log.e(TAG, "WEAR STATE ERROR: state=" + state);
             }
             state = 1;
-            final NodeApi.GetConnectedNodesResult nodes = Wearable.NodeApi.getConnectedNodes(googleApiClient).await(15, TimeUnit.SECONDS);
+            final List<Node> nodes = Tasks.await(Wearable.getNodeClient(context).getConnectedNodes(), 15, TimeUnit.SECONDS);
 
             state = 2;
-            for (Node node : nodes.getNodes()) {
+            for (Node node : nodes) {
                 state = 3;
                 for (DataMap dataMap : params) {
                     state = 4;
-                    PutDataMapRequest putDMR = PutDataMapRequest.create(path);
-                    state = 5;
-                    putDMR.getDataMap().putAll(dataMap);
-                    putDMR.setUrgent();
-                    state = 6;
-                    PutDataRequest request = putDMR.asPutDataRequest();
-                    state = 7;
-                    DataApi.DataItemResult result = Wearable.DataApi.putDataItem(googleApiClient, request).await(15, TimeUnit.SECONDS);
-                    state = 8;
-                    if (result.getStatus().isSuccess()) {
-                        UserError.Log.d(TAG, "DataMap: " + dataMap + " sent to: " + node.getDisplayName());
-                    } else {
-                        UserError.Log.e(TAG, "ERROR: failed to send DataMap");
-                        result = Wearable.DataApi.putDataItem(googleApiClient, request).await(30, TimeUnit.SECONDS);
-                        if (result.getStatus().isSuccess()) {
-                            UserError.Log.d(TAG, "DataMap retry: " + dataMap + " sent to: " + node.getDisplayName());
-                        } else {
-                            UserError.Log.e(TAG, "ERROR on retry: failed to send DataMap: " + result.getStatus().toString());
+                    final byte[] payload = dataMap.toByteArray();
+                    boolean sent = false;
+                    int retryCount = 0;
+                    // mirrors GlucoDataHandler's WearPhoneConnection.sendMessage() retry pattern:
+                    // up to 2 retries with an increasing backoff, then give up and log clearly
+                    while (!sent && retryCount <= 2) {
+                        if (retryCount > 0) {
+                            try {
+                                Thread.sleep(retryCount * 5000L);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                            }
                         }
+                        state = 5;
+                        try {
+                            Tasks.await(Wearable.getMessageClient(context).sendMessage(node.getId(), path, payload), 15, TimeUnit.SECONDS);
+                            state = 6;
+                            sent = true;
+                            if (retryCount > 0) {
+                                UserError.Log.d(TAG, "DataMap retry #" + retryCount + ": " + dataMap + " sent to: " + node.getDisplayName());
+                            } else {
+                                UserError.Log.d(TAG, "DataMap: " + dataMap + " sent to: " + node.getDisplayName());
+                            }
+                        } catch (Exception e) {
+                            state = 6;
+                            UserError.Log.e(TAG, "ERROR: failed to send DataMap (attempt " + (retryCount + 1) + "): " + e);
+                            retryCount++;
+                        }
+                    }
+                    if (!sent) {
+                        UserError.Log.e(TAG, "ERROR: giving up sending DataMap to " + node.getDisplayName() + " after " + retryCount + " retries, path=" + path);
                     }
                     state = 9;
                 }

@@ -14,9 +14,6 @@ import android.preference.PreferenceManager;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import android.view.View;
-import android.view.animation.Animation;
-import android.view.animation.AnimationUtils;
-import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
@@ -47,7 +44,6 @@ public class AlertList extends ActivityWithMenu {
     final int ADD_ALERT = 1;
     final int EDIT_ALERT = 2;
     SharedPreferences prefs;
-    Animation anim;
     private final static String TAG = AlertPlayer.class.getSimpleName();
 
     String stringTimeFromAlert(AlertType alert) {
@@ -94,39 +90,32 @@ public class AlertList extends ActivityWithMenu {
     }
 
 
-    class AlertsOnItemLongClickListener implements AdapterView.OnItemLongClickListener {
+    // Shared entry point for the per-row edit button.
+    void openEditAlert(String uuid) {
+        xdrip.checkForcedEnglish(xdrip.getAppContext());
+        Intent myIntent = new Intent(AlertList.this, EditAlertActivity.class);
+        myIntent.putExtra("uuid", uuid);
+        AlertList.this.startActivityForResult(myIntent, EDIT_ALERT);
+    }
+
+    // SimpleAdapter has no hook for wiring per-row button clicks (its ViewBinder only handles
+    // text/image binding), so this overrides getView() to attach the edit button's click listener
+    // once per row, using the "uuid" field stashed in the row's data map.
+    class AlertRowAdapter extends SimpleAdapter {
+        AlertRowAdapter(ArrayList<HashMap<String, String>> data) {
+            super(AlertList.this, data, R.layout.row_alerts,
+                    new String[]{"alertName", "alertThreshold", "alertTime", "alertMp3File", "alertOverrideSilenceMode"},
+                    new int[]{R.id.alertName, R.id.alertThreshold, R.id.alertTime, R.id.alertMp3File, R.id.alertOverrideSilent});
+        }
+
         @Override
-        public boolean onItemLongClick(final AdapterView<?> parent, final View view, final int position, final long id) {
-            anim.setAnimationListener(new Animation.AnimationListener() {
-
-                @Override
-                public void onAnimationStart(Animation animation) {
-                    ListView lv = (ListView) parent;
-                    @SuppressWarnings("unchecked")
-                    HashMap<String, String> item = (HashMap<String, String>) lv.getItemAtPosition(position);
-                    Log.d(TAG, "Item clicked " + lv.getItemAtPosition(position) + item.get("uuid"));
-
-                    //The XML for each item in the list (should you use a custom XML) must have android:longClickable="true"
-                    // as well (or you can use the convenience method lv.setLongClickable(true);). This way you can have a list
-                    // with only some items responding to longclick. (might be used for non removable alerts)
-
-                    xdrip.checkForcedEnglish(xdrip.getAppContext());
-                    Intent myIntent = new Intent(AlertList.this, EditAlertActivity.class);
-                    myIntent.putExtra("uuid", item.get("uuid")); //Optional parameters
-                    AlertList.this.startActivityForResult(myIntent, EDIT_ALERT);
-                }
-
-                @Override
-                public void onAnimationRepeat(Animation animation) {
-                }
-
-                @Override
-                public void onAnimationEnd(Animation animation) {
-
-                }
-            });
-            view.startAnimation(anim);
-            return true;
+        public View getView(int position, View convertView, android.view.ViewGroup parent) {
+            final View view = super.getView(position, convertView, parent);
+            @SuppressWarnings("unchecked")
+            final HashMap<String, String> item = (HashMap<String, String>) getItem(position);
+            final android.widget.ImageButton editButton = view.findViewById(R.id.buttonEditAlert);
+            editButton.setOnClickListener(v -> openEditAlert(item.get("uuid")));
+            return view;
         }
     }
 
@@ -149,9 +138,6 @@ public class AlertList extends ActivityWithMenu {
 
         addListenerOnButton();
         FillLists();
-        anim = AnimationUtils.loadAnimation(this, R.anim.fade_anim);
-        listViewLow.setOnItemLongClickListener(new AlertsOnItemLongClickListener());
-        listViewHigh.setOnItemLongClickListener(new AlertsOnItemLongClickListener());
     }
 
     @Override
@@ -240,13 +226,13 @@ public class AlertList extends ActivityWithMenu {
 
         ArrayList<HashMap<String, String>> feedList;
         feedList = createAlertsMap(false);
-        SimpleAdapter simpleAdapterLow = new SimpleAdapter(this, feedList, R.layout.row_alerts, new String[]{"alertName", "alertThreshold", "alertTime", "alertMp3File", "alertOverrideSilenceMode"}, new int[]{R.id.alertName, R.id.alertThreshold, R.id.alertTime, R.id.alertMp3File, R.id.alertOverrideSilent});
+        AlertRowAdapter simpleAdapterLow = new AlertRowAdapter(feedList);
         simpleAdapterLow.setViewBinder(vb);
 
         listViewLow.setAdapter(simpleAdapterLow);
 
         feedList = createAlertsMap(true);
-        SimpleAdapter simpleAdapterHigh = new SimpleAdapter(this, feedList, R.layout.row_alerts, new String[]{"alertName", "alertThreshold", "alertTime", "alertMp3File", "alertOverrideSilenceMode"}, new int[]{R.id.alertName, R.id.alertThreshold, R.id.alertTime, R.id.alertMp3File, R.id.alertOverrideSilent});
+        AlertRowAdapter simpleAdapterHigh = new AlertRowAdapter(feedList);
         simpleAdapterHigh.setViewBinder(vb);
         listViewHigh.setAdapter(simpleAdapterHigh);
     }

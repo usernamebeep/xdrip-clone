@@ -358,6 +358,11 @@ public class Home extends BaseWatchFace {
         return Pref.getBooleanDefaultFalse("engineering_mode");
     }
 
+    // no-op on wear: unlike the phone's dashboard Activity, the watch face redraws on its own
+    // draw loop, so there's no separate chart view to nudge after backfill data arrives
+    public static void staticRefreshBGChartsOnIdle() {
+    }
+
     public static boolean get_forced_wear() {
         return Pref.getBooleanDefaultFalse("enable_wearG5") &&
                 Pref.getBooleanDefaultFalse("force_wearG5");

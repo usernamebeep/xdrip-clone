@@ -144,6 +144,7 @@
     <string name="action_resend_to_watch">Resend glucose to watch</string>
     <string name="action_open_watch_setting">Open Settings on Wear</string>
     <string name="action_sync_watch_db">Reset Wear DB</string>
+    <string name="action_force_install_on_watch">Install/Update App on Watch</string>
 
     <string name="erase">Erase</string>
     <string name="interface_tips_from_start">All interface tips will show again from the start</string>
@@ -237,6 +238,7 @@
     <string name="alarms_and_alerts">Alarms and Alerts</string>
     <string name="alerts_and_notifications">Alerts and Notifications</string>
     <string name="glucose_level_alerts_list">Glucose Level Alerts List</string>
+    <string name="edit_alert">Edit Alert</string>
     <string name="glucose_alerts_settings">Glucose Alerts Settings</string>
     <string name="smart_snoozing">Smart Snoozing</string>
     <string name="calibration_alerts">Calibration Alerts</string>
@@ -560,7 +562,7 @@
     <string name="alert_name_colon">Alert Name:</string>
     <string name="threshold_colon">Threshold:</string>
     <string name="default_snooze_colon">Default Snooze:</string>
-    <string name="re_raise_every_x_minutes_if_unaknowledged">Re-raise every \n x minutes if\n unacknowledged:</string>
+    <string name="re_raise_every_x_minutes_if_unaknowledged">Re-raise if unacknowledged, every (min):</string>
     <string name="alert_tone_colon">Alert Tone:</string>
     <string name="choose_file">Choose file</string>
     <string name="select_time_for_alert_colon">Select time for alert:</string>
@@ -575,7 +577,7 @@
     <string name="snooze_alert_before_it_fires">Snooze alert before it fires</string>
     <string name="create_low_alert">Create low alert</string>
     <string name="create_high_alert">Create high alert</string>
-    <string name="long_press_an_existing_alert_to_edit">Long press an existing alert to edit</string>
+    <string name="long_press_an_existing_alert_to_edit">Tap the edit icon on an alert to edit it</string>
     <string name="adding">Adding</string>
     <string name="high">high</string>
     <string name="alert">alert</string>

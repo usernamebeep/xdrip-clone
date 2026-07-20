@@ -179,6 +179,11 @@ public class Ob1G5CollectionService extends G5BaseService {
     private static final String STOP_SCAN_TASK_ID = "ob1-g5-scan-timeout_scan";
     private static final String KEKS = "keks";
     private static final String KEKS_ONE = "keks1_";
+    // Tracks whether force_wearG5 is currently true because WE auto-enabled it (phone lost BLE
+    // range of the transmitter), as opposed to the user having explicitly enabled it themselves -
+    // only the former should ever be auto-reverted on reconnect.
+    private static final String AUTO_WEAR_HANDOFF_ACTIVE = "auto_wear_handoff_active";
+    private static final int AUTO_WEAR_HANDOFF_FAILURE_THRESHOLD_DEFAULT = 3;
     private static volatile STATE state = INIT;
     private static volatile STATE last_automata_state = CLOSED;
 
@@ -1506,6 +1511,7 @@ public class Ob1G5CollectionService extends G5BaseService {
             }
 
             UserError.Log.d(TAG, "Connect Now failures incremented to: " + connectNowFailures);
+            checkAutoWearHandoff();
             if (minimize_scanning && DexSyncKeeper.anticipate(transmitterID) > 0) {
                 // TODO under what circumstances does this CLOSE state not get executed? and anticipate not scheduled?
                 changeState(CLOSE);
@@ -1526,6 +1532,35 @@ public class Ob1G5CollectionService extends G5BaseService {
             }
         }
 
+    }
+
+    // If the phone has failed to connect to the transmitter several times in a row (i.e. it's
+    // likely out of BLE range), and the watch is set up as a capable fallback collector
+    // (enable_wearG5) but not already forced on, automatically hand collection over to the watch.
+    // Only triggers if the user hasn't already explicitly forced watch collection themselves -
+    // AUTO_WEAR_HANDOFF_ACTIVE remembers that we (not the user) made this change, so it can be
+    // safely auto-reverted once the phone reconnects (see checkAutoWearHandback()).
+    private void checkAutoWearHandoff() {
+        if (!Pref.getBoolean("wear_sync", false) || !Pref.getBoolean("enable_wearG5", false)) return;
+        if (Pref.getBoolean("force_wearG5", false)) return; // already forced (by us or the user)
+        final int threshold = Pref.getStringToInt("auto_wear_handoff_failures", AUTO_WEAR_HANDOFF_FAILURE_THRESHOLD_DEFAULT);
+        if (connectNowFailures >= threshold) {
+            UserError.Log.uel(TAG, "Phone appears out of range of transmitter (" + connectNowFailures
+                    + " consecutive connect failures) - handing collection over to watch");
+            Pref.setBoolean(AUTO_WEAR_HANDOFF_ACTIVE, true);
+            Pref.setBoolean("force_wearG5", true); // picked up automatically by WatchUpdaterService's pref-change listener
+        }
+    }
+
+    // Reverts an auto-triggered handoff once the phone successfully reconnects to the transmitter
+    // directly. Never touches force_wearG5 if the user set it themselves (AUTO_WEAR_HANDOFF_ACTIVE
+    // is only true when checkAutoWearHandoff() set it).
+    private void checkAutoWearHandback() {
+        if (Pref.getBoolean(AUTO_WEAR_HANDOFF_ACTIVE, false)) {
+            UserError.Log.uel(TAG, "Phone reconnected to transmitter directly - resuming as primary collector");
+            Pref.setBoolean(AUTO_WEAR_HANDOFF_ACTIVE, false);
+            Pref.setBoolean("force_wearG5", false);
+        }
     }
 
     public void tryGattRefresh() {
@@ -1572,6 +1607,7 @@ public class Ob1G5CollectionService extends G5BaseService {
 
             if (state == CONNECT_NOW) {
                 connectNowFailures = -3; // mark good
+                checkAutoWearHandback();
             }
             if (state == CONNECT) {
                 connectFailures = -1; // mark good

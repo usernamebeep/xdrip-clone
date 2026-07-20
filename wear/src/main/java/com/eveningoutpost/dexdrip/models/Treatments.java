@@ -8,6 +8,8 @@ import android.content.Context;
 import android.os.AsyncTask;
 import android.provider.BaseColumns;
 
+import androidx.annotation.Nullable;
+
 import com.activeandroid.Model;
 import com.activeandroid.annotation.Column;
 import com.activeandroid.annotation.Table;
@@ -15,7 +17,9 @@ import com.activeandroid.query.Delete;
 import com.activeandroid.query.Select;
 import com.activeandroid.util.SQLiteUtils;
 import com.eveningoutpost.dexdrip.Home;
+import com.eveningoutpost.dexdrip.g5model.DexSessionKeeper;
 import com.eveningoutpost.dexdrip.models.UserError.Log;
+import com.eveningoutpost.dexdrip.utilitymodels.Constants;
 import com.eveningoutpost.dexdrip.xdrip;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.Expose;
@@ -35,6 +39,8 @@ import java.util.UUID;
 public class Treatments extends Model {
     private final static String TAG = "jamorham " + Treatments.class.getSimpleName();
     public final static String XDRIP_TAG = "xdrip";
+    public static final String SENSOR_STOP_EVENT_TYPE = "Sensor Stop";
+    public static final String SENSOR_START_EVENT_TYPE = "Sensor Start";
     public static double activityMultipler = 8.4; // somewhere between 8.2 and 8.8
     private static Treatments lastCarbs;
     private static boolean patched = false;
@@ -198,6 +204,75 @@ public class Treatments extends Model {
         Treatment.save();
         pushTreatmentSync(Treatment);
         return Treatment;
+    }
+
+    public static Treatments lastEventTypeFromXdrip(final String eventType) {
+        fixUpTable();
+        return new Select()
+                .from(Treatments.class)
+                .where("enteredBy LIKE '" + XDRIP_TAG + "%' and eventType = ?", eventType)
+                .orderBy("_ID DESC")
+                .executeSingle();
+    }
+
+    public static synchronized Treatments sensorStart(@Nullable Long timestamp, @Nullable String notes) {
+        if (timestamp == null || timestamp == 0) {
+            timestamp = new Date().getTime();
+        }
+
+        final Treatments treatment = new Treatments();
+        treatment.enteredBy = XDRIP_TAG;
+        treatment.eventType = SENSOR_START_EVENT_TYPE;
+        treatment.created_at = DateUtil.toISOString(timestamp);
+        treatment.timestamp = timestamp;
+        treatment.uuid = UUID.randomUUID().toString();
+        if (notes != null && notes.length() > 0) {
+            treatment.notes = notes;
+        }
+        treatment.save();
+        pushTreatmentSync(treatment);
+        return treatment;
+    }
+
+    // Create treatment entry in the database if the sensor was started by another device (e.g.
+    // receiver) and not xDrip. If the sensor was started by xDrip, there will already be a
+    // Sensor Start treatment in the db.
+    public static void sensorStartIfNeeded() {
+        final Treatments lastSensorStart = Treatments.lastEventTypeFromXdrip(Treatments.SENSOR_START_EVENT_TYPE);
+        if (lastSensorStart == null || JoH.msSince(lastSensorStart.timestamp) >= 15 * Constants.MINUTE_IN_MS) {
+            Log.i(TAG, "Creating treatment for Sensor Start initiated by another device");
+            Treatments.sensorStart(null, "Started by transmitter");
+        } else {
+            Log.i(TAG, "Not creating treatment for Sensor Start because one was created too recently: " + JoH.msSince(lastSensorStart.timestamp) + "ms ago");
+        }
+    }
+
+    public static void sensorUpdateStartTimeIfNeeded() {
+        final Treatments lastSensorStart = Treatments.lastEventTypeFromXdrip(Treatments.SENSOR_START_EVENT_TYPE);
+        long localStartedAt = lastSensorStart.timestamp;
+        long dexStartedAt = DexSessionKeeper.getStart();
+        if (dexStartedAt > 0 && !(dexStartedAt - localStartedAt < Constants.MINUTE_IN_MS * 5)) {
+            Treatments.sensorStart(dexStartedAt, "Start time updated");
+        }
+    }
+
+    public static synchronized Treatments sensorStop(@Nullable Long timestamp, @Nullable String notes) {
+        if (timestamp == null || timestamp == 0) {
+            timestamp = new Date().getTime();
+        }
+
+        final Treatments treatment = new Treatments();
+        treatment.enteredBy = XDRIP_TAG;
+        treatment.eventType = SENSOR_STOP_EVENT_TYPE;
+        treatment.created_at = DateUtil.toISOString(timestamp);
+        treatment.timestamp = timestamp;
+        treatment.uuid = UUID.randomUUID().toString();
+        if (notes != null && notes.length() > 0) {
+            treatment.notes = notes;
+        }
+        treatment.save();
+        pushTreatmentSync(treatment);
+        return treatment;
     }
 
     private static void pushTreatmentSync(Treatments treatment) {

@@ -2110,40 +2110,19 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
         updateStuff = true;
         //setViewport();
 
-        if (small_height) {
-            previewChart.setVisibility(View.GONE);
-            // TODO this doesn't look right, fix to some specific hours?
-            // quick test
-            Viewport moveViewPort = new Viewport(chart.getMaximumViewport());
-            float tempwidth = (float) moveViewPort.width() / 4;
-            holdViewport.left = moveViewPort.right - tempwidth;
-            holdViewport.right = moveViewPort.right + (moveViewPort.width() / 24);
-            if (!isAutoYPanEnabled()) {
-                holdViewport.top = moveViewPort.top;
-                holdViewport.bottom = moveViewPort.bottom;
-            } else {
-                Viewport v = bgGraphBuilder.computeYViewport();
-                holdViewport.top = v.top;
-                holdViewport.bottom = v.bottom;
-            }
-            chart.setCurrentViewport(holdViewport);
-            previewChart.setCurrentViewport(holdViewport);
-            UserError.Log.e(TAG, "SMALL HEIGHT VIEWPORT WARNING");
-        } else {
-            if (homeShelf.get("time_buttons") || homeShelf.get("time_locked_always")) {
-                final long which_hour = PersistentStore.getLong("home-locked-hours"); // TODO use which time method
-                if (which_hour > 0) {
-                    hours = which_hour;
-                } else {
-                    hours = DEFAULT_CHART_HOURS;
-                }
-                setHoursViewPort(source);
+        previewChart.setVisibility(small_height ? View.GONE : (homeShelf.get("chart_preview") ? View.VISIBLE : View.GONE));
+
+        if (homeShelf.get("time_buttons") || homeShelf.get("time_locked_always")) {
+            final long which_hour = PersistentStore.getLong("home-locked-hours"); // TODO use which time method
+            if (which_hour > 0) {
+                hours = which_hour;
             } else {
                 hours = DEFAULT_CHART_HOURS;
-                setHoursViewPort(source);
             }
-            previewChart.setVisibility(homeShelf.get("chart_preview") ? View.VISIBLE : View.GONE);
+        } else {
+            hours = DEFAULT_CHART_HOURS;
         }
+        setHoursViewPort(source);
 
         if (insulinsumset || glucoseset || carbsset || timeset) {
             if (chart != null) {
@@ -3239,6 +3218,7 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
         if (!Pref.getBoolean("wear_sync", false)) {
             menu.removeItem(R.id.action_open_watch_settings);
             menu.removeItem(R.id.action_sync_watch_db);//KS
+            menu.removeItem(R.id.action_force_install_on_watch);
         }
         if (!Pref.getBoolean("wear_sync", false) && !Pref.getBoolean("pref_amazfit_enable_key", false)) {
             menu.removeItem(R.id.action_resend_last_bg);
@@ -3525,6 +3505,11 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
 
     public void resetWearDb(MenuItem myitem) {
         startService(new Intent(this, WatchUpdaterService.class).setAction(WatchUpdaterService.ACTION_RESET_DB));
+    }
+
+    public void forceInstallOnWatch(MenuItem myitem) {
+        JoH.static_toast_long("Asking watch to request and install current app version");
+        startService(new Intent(this, WatchUpdaterService.class).setAction(WatchUpdaterService.ACTION_FORCE_WEAR_UPDATE));
     }
 
     public void undoButtonClick(View myitem) {

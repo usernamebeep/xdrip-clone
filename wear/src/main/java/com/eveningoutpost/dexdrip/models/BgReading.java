@@ -263,6 +263,7 @@ public class BgReading extends Model implements ShareUploadableBg {
                 return df.format(this_value);
             } else {
                 df.setMaximumFractionDigits(1);
+                df.setMinimumFractionDigits(1);
                 return df.format(mmolConvert(this_value));
             }
         } else {
@@ -1125,13 +1126,19 @@ public class BgReading extends Model implements ShareUploadableBg {
                        // TODO can these methods be unified to reduce duplication
                                                                // TODO remember to sync this with wear code base
     public static synchronized BgReading bgReadingInsertFromG5(double calculated_value, final long timestamp, String sourceInfoAppend) {
+        return bgReadingInsertFromG5(calculated_value, timestamp, sourceInfoAppend, 0d);
+    }
+
+    // slope is the sender's own already-calculated_value_slope (e.g. synced from the phone) -
+    // without it, displaySlopeArrow()/unitizedDeltaString() have nothing to work from and every
+    // synced reading renders as flat/zero-delta regardless of the real trend.
+    public static synchronized BgReading bgReadingInsertFromG5(double calculated_value, final long timestamp, String sourceInfoAppend, double slope) {
 
         final Sensor sensor = Sensor.currentSensor();
         if (sensor == null) {
             Log.w(TAG, "No sensor, ignoring this bg reading");
             return null;
         }
-        // TODO slope!!
         final BgReading existing = getForPreciseTimestamp(timestamp, Constants.MINUTE_IN_MS);
         if (existing == null) {
             final BgReading bgr = new BgReading();
@@ -1141,6 +1148,7 @@ public class BgReading extends Model implements ShareUploadableBg {
             bgr.timestamp = timestamp;
             bgr.uuid = UUID.randomUUID().toString();
             bgr.calculated_value = calculated_value;
+            bgr.calculated_value_slope = slope;
             bgr.raw_data = SPECIAL_G5_PLACEHOLDER; // placeholder
             bgr.appendSourceInfo("G5 Native");
             if (sourceInfoAppend != null && sourceInfoAppend.length() > 0) {
@@ -1153,6 +1161,14 @@ public class BgReading extends Model implements ShareUploadableBg {
             Inevitable.stackableTask("NotifySyncBgr", 3000, () -> notifyAndSync(bgr));
             return bgr;
         } else {
+            // A reading for this timestamp was already synced - most commonly the current/latest
+            // reading, re-sent on every sync cycle. Without this, a reading first synced with a
+            // missing/wrong slope (e.g. before this fix, or from a race with an older payload)
+            // would keep that wrong slope forever, since it's never re-inserted afterwards.
+            if (existing.calculated_value_slope != slope) {
+                existing.calculated_value_slope = slope;
+                existing.save();
+            }
             return existing;
         }
     }
@@ -2060,8 +2076,8 @@ public class BgReading extends Model implements ShareUploadableBg {
             }
         } else {
             // This is a high alert we should be heading down
-            if((latest.get(1).calculated_value - latest.get(0).calculated_value > 4) ||
-               (latest.get(2).calculated_value - latest.get(0).calculated_value > 10)) {
+            if((latest.get(1).calculated_value - latest.get(0).calculated_value > 1) ||
+               (latest.get(2).calculated_value - latest.get(0).calculated_value > 2)) {
                 Log.d(TAG_ALERT, "trendingToAlertEnd returning true for high alert");
                 return true;
             }

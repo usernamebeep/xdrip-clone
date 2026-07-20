@@ -51,7 +51,7 @@
                 android:layout_height="wrap_content"
                 android:minHeight="?attr/actionBarSize" />
 
-            <RelativeLayout
+            <androidx.constraintlayout.widget.ConstraintLayout
                 android:id="@+id/home_layout_holder"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
@@ -64,36 +64,40 @@
 
                 <lecho.lib.hellocharts.view.LineChartView
                     android:id="@+id/chart"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:layout_alignParentEnd="true"
-                    android:layout_alignParentStart="false"
-                    android:layout_marginTop="45dp"
-                    android:padding="0dp" />
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_marginTop="8dp"
+                    android:padding="0dp"
+                    app:layout_constraintTop_toBottomOf="@id/top_info_barrier"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent" />
 
                 <TextView
                     android:id="@+id/notices"
-                    android:layout_width="match_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentLeft="true"
-                    android:layout_alignParentTop="true"
                     android:background="@android:color/transparent"
                     android:gravity="left|top"
                     android:paddingEnd="10dp"
                     android:paddingStart="10dp"
                     android:text="@string/alerts"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="#C30909" />
+                    android:textColor="#C30909"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent" />
 
 
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
                     android:layout_margin="0dp"
                     android:padding="0dp"
                     android:id="@+id/layoutCurrentBgValueRealTime"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent">
 
                     <TextView
                         android:id="@+id/currentBgValueRealTime"
@@ -102,7 +106,6 @@
                         android:layout_gravity="right"
                         android:layout_marginBottom="4dp"
                         android:layout_marginTop="-10dp"
-                        android:layout_toStartOf="@+id/trendArrow"
                         android:layout_weight="1"
                         android:background="@android:color/transparent"
                         android:gravity="right"
@@ -115,8 +118,6 @@
                         android:id="@+id/trendArrow"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_alignParentEnd="true"
-                        android:layout_alignParentTop="true"
                         android:layout_marginRight="25dp"
                         android:layout_marginLeft="10dp"
                         android:layout_marginTop="18dp"
@@ -133,12 +134,17 @@
                         app:showIfTrue="@{safeUnbox(vs.included[`graphic_trend_arrow`])}" />
                 </LinearLayout>
 
+                <androidx.constraintlayout.widget.Barrier
+                    android:id="@+id/top_info_barrier"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:barrierDirection="bottom"
+                    app:constraint_referenced_ids="notices,layoutCurrentBgValueRealTime" />
+
                 <TextView
                     android:id="@+id/extraStatusLine"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_below="@+id/notices"
                     android:background="@android:color/transparent"
                     android:gravity="left|top"
                     android:paddingEnd="10dp"
@@ -148,28 +154,28 @@
                     android:shadowDy="0"
                     android:shadowRadius="14"
                     android:text="Extra status line"
-                    android:textAppearance="?android:attr/textAppearanceSmall" />
+                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/notices" />
 
                 <TextView
                     android:id="@+id/textBridgeBattery"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_below="@+id/extraStatusLine"
                     android:layout_marginLeft="10dp"
                     android:background="@android:color/transparent"
                     android:inputType="none"
                     android:text="Battery Status"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textSize="12sp"
-                    android:textStyle="normal" />
+                    android:textStyle="normal"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/extraStatusLine" />
 
                 <TextView
                     android:id="@+id/lowpredict"
-                    android:layout_width="fill_parent"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_below="@+id/textBridgeBattery"
                     android:layout_marginRight="5dp"
                     android:layout_marginTop="-2dp"
                     android:background="@android:color/transparent"
@@ -183,17 +189,18 @@
                     android:text="Low prediction"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textColor="#C30909"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/textBridgeBattery" />
 
                 <ImageButton
                     android:id="@+id/btnTreatment"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/layoutCurrentBgValueRealTime"
-                    android:layout_alignEnd="@+id/layoutCurrentBgValueRealTime"
                     android:layout_marginTop="1dp"
                     android:layout_marginRight="6dp"
-                    android:background="@android:color/transparent"
+                    android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/speaktreatment"
                     android:gravity="right"
                     android:nestedScrollingEnabled="false"
@@ -201,17 +208,17 @@
                     android:paddingTop="2dp"
                     android:paddingRight="4dp"
                     android:paddingBottom="1dp"
-                    android:src="@drawable/ic_eyedropper_variant_grey600_24dp" />
+                    android:src="@drawable/ic_eyedropper_variant_grey600_24dp"
+                    app:layout_constraintTop_toBottomOf="@+id/layoutCurrentBgValueRealTime"
+                    app:layout_constraintEnd_toEndOf="@+id/layoutCurrentBgValueRealTime" />
 
                 <ImageButton
                     android:id="@+id/btnNote"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignEnd="@+id/lowpredict"
-                    android:layout_below="@+id/btnTreatment"
                     android:layout_marginRight="0dp"
                     android:layout_marginTop="4dp"
-                    android:background="@android:color/transparent"
+                    android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Add note"
                     android:gravity="right"
                     android:onClick="showNoteTextInputDialog"
@@ -219,17 +226,17 @@
                     android:paddingLeft="2dp"
                     android:paddingRight="6dp"
                     android:paddingTop="2dp"
-                    android:src="@drawable/ic_note_plus_grey600_24dp" />
+                    android:src="@drawable/ic_note_plus_grey600_24dp"
+                    app:layout_constraintEnd_toEndOf="@+id/lowpredict"
+                    app:layout_constraintTop_toBottomOf="@+id/btnTreatment" />
 
 
                 <ImageButton
                     android:id="@+id/btnUndo"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignStart="@+id/btnNote"
-                    android:layout_below="@+id/btnNote"
                     android:layout_marginTop="8dp"
-                    android:background="@android:color/transparent"
+                    android:background="?attr/selectableItemBackgroundBorderless"
 
                     android:contentDescription="Undo last"
                     android:onClick="undoButtonClick"
@@ -237,33 +244,33 @@
                     android:paddingLeft="1dp"
                     android:paddingRight="3dp"
                     android:paddingTop="2dp"
-                    android:src="@drawable/ic_undo_variant_grey600_24dp" />
+                    android:src="@drawable/ic_undo_variant_grey600_24dp"
+                    app:layout_constraintStart_toStartOf="@+id/btnNote"
+                    app:layout_constraintTop_toBottomOf="@+id/btnNote" />
 
 
                 <ImageButton
                     android:id="@+id/btnRedo"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignStart="@+id/btnUndo"
-                    android:layout_below="@+id/btnUndo"
                     android:layout_marginTop="8dp"
-                    android:background="@android:color/transparent"
+                    android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="Redo last"
                     android:onClick="redoButtonClick"
                     android:paddingBottom="1dp"
                     android:paddingLeft="1dp"
                     android:paddingRight="3dp"
                     android:paddingTop="1dp"
-                    android:src="@drawable/ic_redo_variant_grey600_24dp" />
+                    android:src="@drawable/ic_redo_variant_grey600_24dp"
+                    app:layout_constraintStart_toStartOf="@+id/btnUndo"
+                    app:layout_constraintTop_toBottomOf="@+id/btnUndo" />
 
 
                 <TextView
                     android:id="@+id/treatmentTextView"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignTop="@+id/btnTreatment"
                     android:layout_marginTop="6dp"
-                    android:layout_toStartOf="@+id/btnTreatment"
                     android:background="@android:color/transparent"
                     android:gravity="right"
                     android:shadowColor="@android:color/black"
@@ -274,248 +281,256 @@
                     android:text="Treatment voice data appears here"
                     android:textAlignment="gravity"
                     android:textColor="@android:color/holo_green_light"
-                    android:textSize="14dp" />
+                    android:textSize="14dp"
+                    app:layout_constraintTop_toTopOf="@+id/btnTreatment"
+                    app:layout_constraintEnd_toStartOf="@+id/btnTreatment" />
 
                 <ImageButton
                     android:id="@+id/approveTreatment"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentStart="true"
-                    android:layout_below="@+id/btnTreatment"
                     android:layout_marginStart="29dp"
                     android:contentDescription="Confirm Treatment"
-                    android:src="@android:drawable/ic_input_add" />
+                    android:src="@android:drawable/ic_input_add"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/btnTreatment" />
 
                 <ImageButton
                     android:id="@+id/cancelTreatment"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignTop="@+id/approveTreatment"
-                    android:layout_toEndOf="@+id/approveTreatment"
-                    android:src="@android:drawable/ic_delete" />
+                    android:src="@android:drawable/ic_delete"
+                    app:layout_constraintTop_toTopOf="@+id/approveTreatment"
+                    app:layout_constraintStart_toEndOf="@+id/approveTreatment" />
 
                 <ImageButton
                     android:id="@+id/bloodTestButton"
                     android:layout_width="wrap_content"
 
                     android:layout_height="wrap_content"
-                    android:layout_alignBottom="@+id/cancelTreatment"
                     android:layout_marginStart="29dp"
-                    android:layout_toEndOf="@+id/cancelTreatment"
-                    android:src="@drawable/ic_touch_app_white_48dp" />
+                    android:src="@drawable/ic_touch_app_white_48dp"
+                    app:layout_constraintBottom_toBottomOf="@+id/cancelTreatment"
+                    app:layout_constraintStart_toEndOf="@+id/cancelTreatment" />
 
                 <TextView
                     android:id="@+id/textBloodGlucose"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignBottom="@+id/bloodTestButton"
                     android:layout_marginBottom="12dp"
-                    android:layout_toEndOf="@+id/bloodTestButton"
                     android:background="@android:color/transparent"
                     android:text="102 mg/dl"
                     android:textColor="@android:color/holo_green_light"
                     android:textSize="22sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="@+id/bloodTestButton"
+                    app:layout_constraintStart_toEndOf="@+id/bloodTestButton" />
 
                 <ImageButton
                     android:id="@+id/buttonCarbs"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignStart="@+id/bloodTestButton"
-                    android:layout_below="@+id/bloodTestButton"
-                    android:src="@drawable/ic_local_dining_white_48dp" />
+                    android:src="@drawable/ic_local_dining_white_48dp"
+                    app:layout_constraintStart_toStartOf="@+id/bloodTestButton"
+                    app:layout_constraintTop_toBottomOf="@+id/bloodTestButton" />
 
                 <TextView
                     android:id="@+id/textCarbohydrate"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignBottom="@+id/buttonCarbs"
                     android:layout_marginBottom="12dp"
-                    android:layout_toEndOf="@+id/buttonCarbs"
                     android:background="@android:color/transparent"
                     android:text="65 grams"
                     android:textColor="@android:color/holo_green_light"
                     android:textSize="22dp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="@+id/buttonCarbs"
+                    app:layout_constraintStart_toEndOf="@+id/buttonCarbs" />
 
                 <ImageButton
                     android:id="@+id/buttonInsulin0"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/textCarbohydrate"
-                    android:layout_alignLeft="@+id/buttonCarbs"
-                    android:src="@drawable/ic_colorize_white_48dp" />
+                    android:src="@drawable/ic_colorize_white_48dp"
+                    app:layout_constraintStart_toStartOf="@+id/buttonCarbs"
+                    app:layout_constraintTop_toBottomOf="@+id/textCarbohydrate" />
 
 
                 <TextView
                     android:id="@+id/textInsulinSumUnits"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/textCarbohydrate"
-                    android:layout_alignLeft="@+id/textCarbohydrate"
                     android:background="@android:color/transparent"
                     android:text="14 units"
                     android:textColor="@android:color/holo_green_light"
                     android:textSize="22dp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:layout_constraintStart_toStartOf="@+id/textCarbohydrate"
+                    app:layout_constraintTop_toBottomOf="@+id/textCarbohydrate" />
 
                 <ImageButton
                     android:id="@+id/buttonInsulin1"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/textInsulinSumUnits"
-                    android:layout_alignLeft="@+id/buttonCarbs"
-                    android:src="@drawable/ic_colorize_white_48dp" />
+                    android:src="@drawable/ic_colorize_white_48dp"
+                    app:layout_constraintStart_toStartOf="@+id/buttonCarbs"
+                    app:layout_constraintTop_toBottomOf="@+id/textInsulinSumUnits" />
 
                 <TextView
                     android:id="@+id/textInsulin1Units"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignBottom="@+id/buttonInsulin1"
                     android:layout_marginStart="0dp"
                     android:layout_marginBottom="12dp"
-                    android:layout_toEndOf="@+id/buttonInsulin1"
                     android:background="@android:color/transparent"
                     android:text="14 units"
                     android:textColor="@android:color/holo_green_light"
                     android:textSize="18dp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="@+id/buttonInsulin1"
+                    app:layout_constraintStart_toEndOf="@+id/buttonInsulin1" />
 
                 <ImageButton
                     android:id="@+id/buttonInsulin2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/buttonInsulin1"
-                    android:layout_alignLeft="@+id/buttonInsulin1"
-                    android:src="@drawable/ic_colorize_white_48dp" />
+                    android:src="@drawable/ic_colorize_white_48dp"
+                    app:layout_constraintStart_toStartOf="@+id/buttonInsulin1"
+                    app:layout_constraintTop_toBottomOf="@+id/buttonInsulin1" />
 
                 <TextView
                     android:id="@+id/textInsulin2Units"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignBottom="@+id/buttonInsulin2"
                     android:layout_marginStart="0dp"
                     android:layout_marginBottom="12dp"
-                    android:layout_toEndOf="@+id/buttonInsulin2"
                     android:background="@android:color/transparent"
                     android:text="14 units"
                     android:textColor="@android:color/holo_green_light"
                     android:textSize="18dp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="@+id/buttonInsulin2"
+                    app:layout_constraintStart_toEndOf="@+id/buttonInsulin2" />
 
                 <ImageButton
                     android:id="@+id/buttonInsulin3"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/buttonInsulin2"
-                    android:layout_alignLeft="@+id/buttonInsulin2"
-                    android:src="@drawable/ic_colorize_white_48dp" />
+                    android:src="@drawable/ic_colorize_white_48dp"
+                    app:layout_constraintStart_toStartOf="@+id/buttonInsulin2"
+                    app:layout_constraintTop_toBottomOf="@+id/buttonInsulin2" />
 
                 <TextView
                     android:id="@+id/textInsulin3Units"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignBottom="@+id/buttonInsulin3"
                     android:layout_marginStart="0dp"
                     android:layout_marginBottom="12dp"
-                    android:layout_toEndOf="@+id/buttonInsulin3"
                     android:background="@android:color/transparent"
                     android:text="14 units"
                     android:textColor="@android:color/holo_green_light"
                     android:textSize="18dp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="@+id/buttonInsulin3"
+                    app:layout_constraintStart_toEndOf="@+id/buttonInsulin3" />
 
                 <ImageButton
                     android:id="@+id/timeButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignStart="@+id/approveTreatment"
-                    android:layout_below="@+id/bloodTestButton"
-                    android:src="@drawable/ic_av_timer_white_36dp" />
+                    android:src="@drawable/ic_av_timer_white_36dp"
+                    app:layout_constraintStart_toStartOf="@+id/approveTreatment"
+                    app:layout_constraintTop_toBottomOf="@+id/bloodTestButton" />
 
                 <TextView
                     android:id="@+id/textTimeButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignBottom="@+id/timeButton"
                     android:layout_marginBottom="12dp"
-                    android:layout_toEndOf="@+id/timeButton"
                     android:background="@android:color/transparent"
                     android:text="00:00"
                     android:textColor="@android:color/holo_green_light"
                     android:textSize="22dp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="@+id/timeButton"
+                    app:layout_constraintStart_toEndOf="@+id/timeButton" />
 
                 <TextView
                     android:id="@+id/parakeetbattery"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/extraStatusLine"
                     android:layout_marginLeft="10dp"
-                    android:layout_toEndOf="@+id/textBridgeBattery"
                     android:background="@android:color/transparent"
                     android:inputType="none"
                     android:text="Battery Status"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textSize="12sp"
-                    android:textStyle="normal" />
+                    android:textStyle="normal"
+                    app:layout_constraintStart_toEndOf="@+id/textBridgeBattery"
+                    app:layout_constraintTop_toBottomOf="@+id/extraStatusLine" />
 
                 <TextView
                     android:id="@+id/libstatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_below="@+id/extraStatusLine"
                     android:layout_marginLeft="10dp"
-                    android:layout_toEndOf="@+id/parakeetbattery"
                     android:background="@android:color/transparent"
                     android:inputType="none"
                     android:text="Sensor Age"
                     android:textAppearance="?android:attr/textAppearanceSmall"
                     android:textSize="12sp"
-                    android:textStyle="normal" />
+                    android:textStyle="normal"
+                    app:layout_constraintStart_toEndOf="@+id/parakeetbattery"
+                    app:layout_constraintTop_toBottomOf="@+id/extraStatusLine" />
 
                 <ImageButton
                     android:id="@+id/vehicleModeButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    android:layout_below="@+id/btnRedo"
                     android:layout_marginRight="8dp"
                     android:layout_marginTop="8dp"
-                    android:background="@android:color/transparent"
+                    android:background="?attr/selectableItemBackgroundBorderless"
                     android:paddingBottom="2dp"
                     android:paddingRight="4dp"
-                    android:src="@drawable/ic_car_grey600_24dp" />
+                    android:src="@drawable/ic_car_grey600_24dp"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toBottomOf="@+id/btnRedo" />
 
-                <Button
+                <com.google.android.material.button.MaterialButton
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:id="@+id/bpmButton"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
-                    android:layout_alignStart="@+id/vehicleModeButton"
-                    android:layout_below="@+id/vehicleModeButton"
                     android:layout_marginBottom="10dp"
                     android:layout_marginRight="8dp"
                     android:layout_marginTop="10dp"
-                    android:background="@android:color/transparent"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:textColor="@android:color/white"
                     android:drawableTop="@drawable/ic_heart_pulse_grey600_24dp"
+                    app:rippleColor="@android:color/darker_gray"
                     android:gravity="center_horizontal|center_vertical"
                     android:onClick="toggleStepsVisibility"
                     android:paddingBottom="2dp"
                     android:paddingEnd="4dp"
                     android:text="123"
-                    android:textSize="10sp" />
+                    android:textSize="10sp"
+                    app:layout_constraintStart_toStartOf="@+id/vehicleModeButton"
+                    app:layout_constraintTop_toBottomOf="@+id/vehicleModeButton" />
 
-                <Button
+                <com.google.android.material.button.MaterialButton
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:id="@+id/walkButton"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
-                    android:layout_alignStart="@+id/vehicleModeButton"
-                    android:layout_below="@+id/bpmButton"
                     android:layout_marginLeft="-10dp"
                     android:layout_marginRight="0dp"
                     android:layout_marginTop="0dp"
-                    android:background="@android:color/transparent"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:textColor="@android:color/white"
                     android:drawableTop="@drawable/ic_walk_grey600_24dp"
+                    app:rippleColor="@android:color/darker_gray"
                     android:gravity="center_horizontal|center_vertical"
                     android:onClick="toggleStepsVisibility"
                     android:paddingBottom="0dp"
@@ -523,10 +538,12 @@
                     android:paddingStart="0dp"
                     android:paddingTop="0dp"
                     android:text="99999"
-                    android:textSize="10sp" />
+                    android:textSize="10sp"
+                    app:layout_constraintStart_toStartOf="@+id/vehicleModeButton"
+                    app:layout_constraintTop_toBottomOf="@+id/bpmButton" />
 
 
-            </RelativeLayout>
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <LinearLayout
                 android:id="@+id/nanoStatus"
@@ -571,7 +588,7 @@
                 app:showIfTrue="@{safeUnbox(vs.included[`source_wizard`])}">
 
 
-                <Button
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/sourceWizardButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -589,7 +606,8 @@
                 android:orientation="horizontal"
                 android:visibility="@{safeUnbox(vs.included[`time_buttons`]) ? View.VISIBLE: View.GONE}">
 
-                <Button
+                <com.google.android.material.button.MaterialButton
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:id="@+id/hourbutton24"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -599,9 +617,11 @@
                     android:onClick="timeButtonClick"
                     android:onLongClick="@{home::timeButtonLongClick}"
                     android:text="@{@string/hour_format(24)}"
+                    android:textColor="@android:color/white"
                     app:button_indicate="@{home.isHourLocked(24, ui.ping)}" />
 
-                <Button
+                <com.google.android.material.button.MaterialButton
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:id="@+id/hourbutton12"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -611,30 +631,35 @@
                     android:minWidth="0dp"
                     android:onLongClick="@{home::timeButtonLongClick}"
                     android:text="@{@string/hour_format(12)}"
+                    android:textColor="@android:color/white"
                     app:button_indicate="@{home.isHourLocked(12, ui.ping)}" />
 
-                <Button
+                <com.google.android.material.button.MaterialButton
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:id="@+id/hourbutton6"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:longClickable="true"
                     android:textSize="14sp"
-                    android:minWidth="0dp"
                     android:onClick="timeButtonClick"
+                    android:minWidth="0dp"
                     android:onLongClick="@{home::timeButtonLongClick}"
                     android:text="@{@string/hour_format(6)}"
+                    android:textColor="@android:color/white"
                     app:button_indicate="@{home.isHourLocked(6, ui.ping)}" />
 
-                <Button
+                <com.google.android.material.button.MaterialButton
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:id="@+id/hourbutton3"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:longClickable="true"
                     android:textSize="14sp"
-                    android:minWidth="0dp"
                     android:onClick="timeButtonClick"
+                    android:minWidth="0dp"
                     android:onLongClick="@{home::timeButtonLongClick}"
                     android:text="@{@string/hour_format(3)}"
+                    android:textColor="@android:color/white"
                     app:button_indicate="@{home.isHourLocked(3, ui.ping)}" />
 
             </LinearLayout>
@@ -643,7 +668,6 @@
                 android:id="@+id/chart_preview"
                 android:layout_width="wrap_content"
                 android:layout_height="0dp"
-                android:layout_alignParentBottom="true"
                 android:layout_alignParentStart="true"
                 android:layout_weight=".20"
                 android:visibility="@{safeUnbox(vs.included[`chart_preview`]) ? View.VISIBLE: View.GONE}" />

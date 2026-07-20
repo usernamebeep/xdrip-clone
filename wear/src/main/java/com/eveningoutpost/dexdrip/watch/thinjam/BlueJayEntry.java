@@ -1,5 +1,7 @@
 package com.eveningoutpost.dexdrip.watch.thinjam;
 
+import android.os.Build;
+
 // jamorham
 
 public class BlueJayEntry {
@@ -8,6 +10,10 @@ public class BlueJayEntry {
 
     public static boolean isPhoneCollectorDisabled() {
         return false; // stub
+    }
+
+    public static boolean isNative() {
+        return Build.MODEL.startsWith("BlueJay U");
     }
 
 }

@@ -4,6 +4,7 @@ import android.annotation.TargetApi;
 import android.app.AlarmManager;
 import android.app.IntentService;
 import android.app.Notification;
+import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
@@ -59,6 +60,7 @@ import java.util.List;
  */
 public class Notifications extends IntentService {
     public static final long[] vibratePattern = {0, 1000, 300, 1000, 300, 1000};
+    public static final long[] lowAlertVibratePattern = {0, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50};
     public static boolean bg_notifications;
     public static boolean bg_persistent_high_alert_enabled;
     public static boolean bg_ongoing;
@@ -97,6 +99,7 @@ public class Notifications extends IntentService {
     final static int extraCalibrationNotificationId = 004;
     public static final int exportCompleteNotificationId = 005;
     final static int ongoingNotificationId = 8811;
+    private static final String ONGOING_CHANNEL_ID = "xdrip_ongoing_collection";
     public static final int exportAlertNotificationId = 006;
     public static final int uncleanAlertNotificationId = 007;
     public static final int missedAlertNotificationId = 010;
@@ -128,7 +131,7 @@ public class Notifications extends IntentService {
             Log.d("Notifications", "Running Notifications Intent Service");
             final Context context = getApplicationContext();
 
-            bg_notifications = Pref.getBoolean("bg_notifications", false);
+            bg_notifications = AlertPlayer.watchAlertsEnabled();
             if (bg_notifications) {
                 //KS TODO ActivityRecognizedService.reStartActivityRecogniser(context);
 
@@ -162,7 +165,7 @@ public class Notifications extends IntentService {
     public void ReadPerfs(Context context) {
         mContext = context;
         prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        bg_notifications = prefs.getBoolean("bg_notifications", false);
+        bg_notifications = AlertPlayer.watchAlertsEnabled();
         bg_persistent_high_alert_enabled = prefs.getBoolean("persistent_high_alert_enabled", false);
         bg_vibrate = prefs.getBoolean("bg_vibrate", true);
         bg_lights = prefs.getBoolean("bg_lights", false);//KS true
@@ -511,10 +514,15 @@ public class Notifications extends IntentService {
             (wakeTime - now) /60000d + " minutes");
         if (wakeIntent != null)
             alarm.cancel(wakeIntent);
-        wakeIntent = PendingIntent.getService(this, 0, new Intent(this, this.getClass()), 0);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        wakeIntent = PendingIntent.getService(this, 0, new Intent(this, this.getClass()), PendingIntent.FLAG_IMMUTABLE);
+        // Since API 31, setExactAndAllowWhileIdle()/setExact() throw SecurityException unless the
+        // app holds SCHEDULE_EXACT_ALARM (user-grantable) or USE_EXACT_ALARM - fall back to an
+        // inexact alarm rather than crashing when that permission isn't held.
+        final boolean canScheduleExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                || alarm.canScheduleExactAlarms();
+        if (canScheduleExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, wakeTime, wakeIntent);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        } else if (canScheduleExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             alarm.setExact(AlarmManager.RTC_WAKEUP, wakeTime, wakeIntent);
         } else {
             alarm.set(AlarmManager.RTC_WAKEUP, wakeTime, wakeIntent);
@@ -551,68 +559,27 @@ public class Notifications extends IntentService {
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     public synchronized Notification createOngoingNotification(BgGraphBuilder bgGraphBuilder, Context context) {
-        //KS TODO not used on wear; called by ForegroundService
-        /*mContext = context;
-        ReadPerfs(mContext);
-        Intent intent = new Intent(mContext, Home.class);
-        List<BgReading> lastReadings = BgReading.latest(2);
-        BgReading lastReading = null;
-        if (lastReadings != null && lastReadings.size() >= 2) {
-            lastReading = lastReadings.get(0);
+        final NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager.getNotificationChannel(ONGOING_CHANNEL_ID) == null) {
+            final NotificationChannel channel = new NotificationChannel(ONGOING_CHANNEL_ID,
+                    "Collector running", NotificationManager.IMPORTANCE_LOW);
+            channel.setShowBadge(false);
+            notificationManager.createNotificationChannel(channel);
         }
 
-        TaskStackBuilder stackBuilder = TaskStackBuilder.create(mContext);
-        stackBuilder.addParentStack(Home.class);
-        stackBuilder.addNextIntent(intent);
-        PendingIntent resultPendingIntent =
-                stackBuilder.getPendingIntent(
-                        0,
-                        PendingIntent.FLAG_UPDATE_CURRENT
-                );
+        final BgReading lastReading = BgReading.last(true);
+        final String title = lastReading == null ? "xDrip collecting" : (lastReading.displayValue(context) + " " + lastReading.displaySlopeArrow());
+        final String content = lastReading == null ? "Watch is collecting glucose data directly" : bgGraphBuilder.unitizedDeltaString(true, true);
 
-        NotificationCompat.Builder b = new NotificationCompat.Builder(mContext);
-        //b.setOngoing(true);
-        b.setCategory(NotificationCompat.CATEGORY_STATUS);
-        final BestGlucose.DisplayGlucose dg = (use_best_glucose) ? BestGlucose.getDisplayGlucose() : null;
-        final boolean use_color_in_notification = false; // could be preference option
-        final SpannableString titleString = new SpannableString(lastReading == null ? "BG Reading Unavailable" : (dg != null) ? (dg.spannableString(dg.unitized + " " + dg.delta_arrow,use_color_in_notification))
-                : (lastReading.displayValue(mContext) + " " + lastReading.slopeArrow()));
-        b.setContentTitle(titleString)
-                .setContentText("xDrip Data collection service is running.")
+        return new NotificationCompat.Builder(context, ONGOING_CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(content)
                 .setSmallIcon(R.drawable.ic_action_communication_invert_colors_on)
-                .setUsesChronometer(false);
-        if (lastReading != null) {
-
-            b.setWhen(lastReading.timestamp);
-            final SpannableString deltaString = new SpannableString("Delta: " + ((dg != null) ? (dg.spannableString(dg.unitized_delta + (dg.from_plugin ? " "+context.getString(R.string.p_in_circle) : "")))
-                    : bgGraphBuilder.unitizedDeltaString(true, true)));
-
-            b.setContentText(deltaString);
-            iconBitmap = new BgSparklineBuilder(mContext)
-                    .setHeight(64)
-                    .setWidth(64)
-                    .setStart(System.currentTimeMillis() - 60000 * 60 * 3)
-                    .setBgGraphBuilder(bgGraphBuilder)
-                    .setBackgroundColor(getCol(X.color_notification_chart_background))
-                    .build();
-            b.setLargeIcon(iconBitmap);
-            NotificationCompat.BigPictureStyle bigPictureStyle = new NotificationCompat.BigPictureStyle();
-            notifiationBitmap = new BgSparklineBuilder(mContext)
-                    .setBgGraphBuilder(bgGraphBuilder)
-                    .showHighLine()
-                    .showLowLine()
-                    .setStart(System.currentTimeMillis() - 60000 * 60 * 3)
-                    .showAxes(true)
-                    .setBackgroundColor(getCol(X.color_notification_chart_background))
-                    .setShowFiltered(DexCollectionType.hasFiltered() && Pref.getBooleanDefaultFalse("show_filtered_curve"))
-                    .build();
-            bigPictureStyle.bigPicture(notifiationBitmap)
-                    .setSummaryText(deltaString)
-                    .setBigContentTitle(titleString);
-            b.setStyle(bigPictureStyle);
-        }
-        b.setContentIntent(resultPendingIntent);
-        return b.build();*/ return null;
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+                .setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, Home.class),
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
+                .build();
     }
 
     private synchronized void bgOngoingNotification(final BgGraphBuilder bgGraphBuilder) {
@@ -735,7 +702,7 @@ public class Notifications extends IntentService {
     }
 
     private PendingIntent notificationIntent(Intent intent){
-        return PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        return PendingIntent.getActivity(mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
     private void notificationDismiss(int notificationId) {
@@ -876,11 +843,11 @@ public class Notifications extends IntentService {
                             .setContentTitle(message)
                             .setContentText(message)
                             .setLocalOnly(localOnly)//KS
-                            .setContentIntent(PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT));
+                            .setContentIntent(PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
             if (addDeleteIntent) {
                 Intent deleteIntent = new Intent(context, SnoozeOnNotificationDismissService.class);
                 deleteIntent.putExtra("alertType", type);
-                mBuilder.setDeleteIntent(PendingIntent.getService(context, 0, deleteIntent, PendingIntent.FLAG_UPDATE_CURRENT));
+                mBuilder.setDeleteIntent(PendingIntent.getService(context, 0, deleteIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
             }
             mBuilder.setVibrate(vibratePattern);
             mBuilder.setLights(0xff00ff00, 300, 1000);

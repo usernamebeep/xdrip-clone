@@ -24,7 +24,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.wearable.complications.ProviderUpdateRequester;
+
+import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester;
 
 import com.eveningoutpost.dexdrip.KeypadInputActivity;
 import com.eveningoutpost.dexdrip.models.JoH;
@@ -58,7 +59,7 @@ public class ComplicationTapBroadcastReceiver extends BroadcastReceiver {
 
 
         // Request an update for the complication that has just been tapped.
-        ProviderUpdateRequester requester = new ProviderUpdateRequester(context, provider);
+        ComplicationDataSourceUpdateRequester requester = ComplicationDataSourceUpdateRequester.create(context, provider);
         requester.requestUpdate(complicationId);
 
         if (!JoH.ratelimit("complication-double-tap", 1)) {
@@ -85,8 +86,10 @@ public class ComplicationTapBroadcastReceiver extends BroadcastReceiver {
 
         // Pass complicationId as the requestCode to ensure that different complications get
         // different intents.
+        // Targeting S+ (API 31) requires FLAG_IMMUTABLE or FLAG_MUTABLE to be set explicitly -
+        // this intent's extras are fixed at creation time, so IMMUTABLE is correct here.
         return PendingIntent.getBroadcast(
-                context, complicationId, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+                context, complicationId, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
     /**

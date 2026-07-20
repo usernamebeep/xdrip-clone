@@ -35,6 +35,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.os.Vibrator;
 import android.provider.Settings;
 import android.text.InputType;
@@ -152,6 +153,25 @@ public class JoH {
     // TODO can we optimize this with System.currentTimeMillis ?
     public static long tsl() {
         return new Date().getTime();
+    }
+
+    public static long uptime() {
+        return SystemClock.elapsedRealtime();
+    }
+
+    public static boolean upForAtLeastMins(int mins) {
+        return uptime() > Constants.MINUTE_IN_MS * mins;
+    }
+
+    public static byte[] joinBytes(final byte[] first, final byte[] second) {
+        if (first == null || second == null) {
+            throw new IllegalArgumentException("Input arrays cannot be null");
+        }
+        final int totalLength = first.length + second.length;
+        final byte[] result = new byte[totalLength];
+        System.arraycopy(first, 0, result, 0, first.length);
+        System.arraycopy(second, 0, result, first.length, second.length);
+        return result;
     }
 
     public static long msSince(long when) {
@@ -506,6 +526,20 @@ public class JoH {
         rateLimits.put(name, time_now);
         PersistentStore.setLong(name, time_now);
         return true;
+    }
+
+    private static String lastLoggedMessage;
+
+    // rate-limited logging of a notable message - app's version also reports to Sentry when
+    // telemetry is enabled; that's a phone-only integration not present on wear, so this just
+    // logs locally.
+    public static synchronized void logMessage(final String message) {
+        if (message == null) return;
+        if (message.equals(lastLoggedMessage)) return;
+        if (ratelimit("joh-logMessage", 300)) {
+            lastLoggedMessage = message;
+            UserError.Log.e(TAG, "Message logged: " + message);
+        }
     }
 
     // return true if below rate limit
@@ -1151,9 +1185,11 @@ public class JoH {
         final long wakeTime = JoH.tsl() + delayMs;
         Log.d(TAG, "Scheduling wakeup intent: " + dateTimeText(wakeTime));
         final AlarmManager alarm = (AlarmManager) context.getSystemService(ALARM_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        final boolean canScheduleExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                || alarm.canScheduleExactAlarms();
+        if (canScheduleExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, wakeTime, pendingIntent);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        } else if (canScheduleExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             alarm.setExact(AlarmManager.RTC_WAKEUP, wakeTime, pendingIntent);
         } else
             alarm.set(AlarmManager.RTC_WAKEUP, wakeTime, pendingIntent);
@@ -1170,13 +1206,21 @@ public class JoH {
             } catch (Exception e) {
                 Log.e(TAG, "Exception cancelling alarm in wakeUpIntent: " + e);
             }
+            // setAlarmClock() is exempt from the SCHEDULE_EXACT_ALARM restriction (Android docs:
+            // "scheduling of exact alarms with setAlarmClock() are not subject to these
+            // restrictions"), so only the plain setExactAndAllowWhileIdle/setExact branches
+            // below need the canScheduleExactAlarms() guard added since API 31.
+            final boolean canScheduleExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                    || alarm.canScheduleExactAlarms();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (buggy_samsung) {
                     alarm.setAlarmClock(new AlarmManager.AlarmClockInfo(wakeTime, null), pendingIntent);
-                } else {
+                } else if (canScheduleExact) {
                     alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, wakeTime, pendingIntent);
+                } else {
+                    alarm.set(AlarmManager.RTC_WAKEUP, wakeTime, pendingIntent);
                 }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            } else if (canScheduleExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 alarm.setExact(AlarmManager.RTC_WAKEUP, wakeTime, pendingIntent);
             } else
                 alarm.set(AlarmManager.RTC_WAKEUP, wakeTime, pendingIntent);
@@ -1188,7 +1232,7 @@ public class JoH {
 
     public static void scheduleNotification(Context context, String title, String body, int delaySeconds, int notification_id) {
         final Intent notificationIntent = new Intent(context, Home.class).putExtra(Home.SHOW_NOTIFICATION, title).putExtra("notification_body", body).putExtra("notification_id", notification_id);
-        final PendingIntent pendingIntent = PendingIntent.getActivity(context, notification_id, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+        final PendingIntent pendingIntent = PendingIntent.getActivity(context, notification_id, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Log.d(TAG, "Scheduling notification: " + title + " / " + body);
         wakeUpIntent(context, delaySeconds * 1000, pendingIntent);
     }

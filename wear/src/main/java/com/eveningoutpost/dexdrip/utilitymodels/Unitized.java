@@ -51,6 +51,7 @@ public class Unitized {
             df.setMaximumFractionDigits(0);
         } else {
             df.setMaximumFractionDigits(1);
+            df.setMinimumFractionDigits(1);
         }
         return df.format(unitized(value, domgdl)) + " " + (domgdl ? "mgdl" : "mmol");
     }

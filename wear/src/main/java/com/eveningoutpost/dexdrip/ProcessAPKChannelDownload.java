@@ -1,5 +1,6 @@
 package com.eveningoutpost.dexdrip;
 
+import android.content.Context;
 import android.content.Intent;
 import android.os.PowerManager;
 import androidx.annotation.NonNull;
@@ -13,9 +14,8 @@ import com.eveningoutpost.dexdrip.utilitymodels.Inevitable;
 import com.eveningoutpost.dexdrip.utils.AdbInstaller;
 import com.eveningoutpost.dexdrip.utils.CipherUtils;
 import com.eveningoutpost.dexdrip.utils.VersionFixer;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.wearable.Channel;
+import com.google.android.gms.wearable.ChannelClient;
+import com.google.android.gms.wearable.Wearable;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -33,40 +33,34 @@ public class ProcessAPKChannelDownload extends JobIntentService {
 
     private static final String TAG = ProcessAPKChannelDownload.class.getSimpleName();
     private static volatile byte[] apkBytesOutput = new byte[0];
-    private static volatile Channel channel;
-    private static volatile GoogleApiClient googleApiClient;
+    private static volatile ChannelClient.Channel channel;
+    private static volatile Context appContext;
 
     public synchronized void process() {
 
-        if ((googleApiClient == null) || (channel == null)) {
+        if ((appContext == null) || (channel == null)) {
             if (JoH.ratelimit("channel-error-msg", 10)) {
                 UserError.Log.wtf(TAG, "Could not process as input parameters are null!");
             }
             return;
         }
-        channel.getInputStream(googleApiClient).setResultCallback(new ResultCallback<Channel.GetInputStreamResult>() {
-            @Override
-            public void onResult(Channel.GetInputStreamResult getInputStreamResult) {
-                new Thread(new Runnable() {
+        final ChannelClient channelClient = Wearable.getChannelClient(appContext);
+        final ChannelClient.Channel currentChannel = channel;
+        channelClient.getInputStream(currentChannel)
+                .addOnSuccessListener(inputStream -> new Thread(new Runnable() {
                     @Override
                     public void run() {
                         final PowerManager.WakeLock wl = JoH.getWakeLock("receive-apk-update", 300000);
                         try {
                             android.util.Log.d(TAG, "onChannelOpened: onResult");
-                            if (getInputStreamResult == null) {
-                                UserError.Log.d(TAG, "Channel input stream result is NULL!");
+                            if (inputStream == null) {
+                                UserError.Log.e(TAG, "Input stream is null!");
                                 return;
                             }
 
-                            InputStream input = null;
                             BufferedReader reader = null;
                             try {
-                                input = getInputStreamResult.getInputStream();
-                                if (input == null) {
-                                    UserError.Log.e(TAG, "Input stream is null!");
-                                    return;
-                                }
-                                reader = new BufferedReader(new InputStreamReader(input));
+                                reader = new BufferedReader(new InputStreamReader(inputStream));
 
                                 // this protocol can never change
                                 final String versionId = reader.readLine();
@@ -108,7 +102,7 @@ public class ProcessAPKChannelDownload extends JobIntentService {
                                     }
 
                                     final long startedWaiting = JoH.tsl();
-                                    while (apkBytesRead < apkBytesOutput.length && input.available() == 0) {
+                                    while (apkBytesRead < apkBytesOutput.length && inputStream.available() == 0) {
                                         if (JoH.msSince(startedWaiting) > Constants.SECOND_IN_MS * 30) {
                                             UserError.Log.e(TAG, "Timed out waiting for new APK data!");
                                             Inevitable.task("re-request-apk", 5000, new Runnable() {
@@ -123,10 +117,10 @@ public class ProcessAPKChannelDownload extends JobIntentService {
                                         android.util.Log.d(TAG, "Pausing for new data");
                                         JoH.threadSleep(1000);
                                     }
-                                    final int bytesToRead = Math.min(input.available(), apkBytesOutput.length - apkBytesRead);
+                                    final int bytesToRead = Math.min(inputStream.available(), apkBytesOutput.length - apkBytesRead);
                                     UserError.Log.d(TAG, "Before read: " + bytesToRead);
                                     if (bytesToRead > 0) {
-                                        apkBytesRead += input.read(apkBytesOutput, apkBytesRead, bytesToRead);
+                                        apkBytesRead += inputStream.read(apkBytesOutput, apkBytesRead, bytesToRead);
                                     }
                                     UserError.Log.d(TAG, "After read");
                                 }
@@ -139,22 +133,22 @@ public class ProcessAPKChannelDownload extends JobIntentService {
                                 apkBytesVersion = "";
 
                             } catch (final IOException e) {
-                                if (channel != null) {
-                                    android.util.Log.w(TAG, "Could not read channel message Node ID: " + channel.getNodeId() + " Path: " + channel.getPath() + " Error message: " + e.getMessage() + " Error cause: " + e.getCause());
+                                if (currentChannel != null) {
+                                    android.util.Log.w(TAG, "Could not read channel message Node ID: " + currentChannel.getNodeId() + " Path: " + currentChannel.getPath() + " Error message: " + e.getMessage() + " Error cause: " + e.getCause());
                                 } else {
                                     android.util.Log.w(TAG, "channel is null in ioexception: " + e);
                                 }
                             } finally {
                                 try {
-                                    if (input != null) {
-                                        input.close();
+                                    if (inputStream != null) {
+                                        inputStream.close();
                                     }
                                     if (reader != null) {
                                         reader.close();
                                     }
                                 } catch (final IOException e) {
-                                    if (channel != null) {
-                                        android.util.Log.d(TAG, "onChannelOpened: onResult: Could not close buffered reader. Node ID: " + channel.getNodeId() + " Path: " + channel.getPath() + " Error message: " + e.getMessage() + " Error cause: " + e.getCause());
+                                    if (currentChannel != null) {
+                                        android.util.Log.d(TAG, "onChannelOpened: onResult: Could not close buffered reader. Node ID: " + currentChannel.getNodeId() + " Path: " + currentChannel.getPath() + " Error message: " + e.getMessage() + " Error cause: " + e.getCause());
                                     } else {
                                         android.util.Log.d(TAG, "channel is null in final ioexception: " + e);
                                     }
@@ -164,18 +158,17 @@ public class ProcessAPKChannelDownload extends JobIntentService {
                         } finally {
                             android.util.Log.d(TAG, "Finally block before exit");
                             try {
-                                channel.close(googleApiClient);
+                                channelClient.close(currentChannel);
                             } catch (Exception e) {
                                 //
                             }
                             channel = null;
-                            googleApiClient = null;
+                            appContext = null;
                             JoH.releaseWakeLock(wl);
                         }
                     }
-                }).start();
-            }
-        });
+                }).start())
+                .addOnFailureListener(e -> UserError.Log.wtf(TAG, "Could not get channel input stream: " + e));
 
         UserError.Log.d(TAG, "Process exit with channel callback scheduled");
 
@@ -190,13 +183,13 @@ public class ProcessAPKChannelDownload extends JobIntentService {
 
     }
 
-    static synchronized void enqueueWork(final GoogleApiClient client, final Channel current_channel) {
+    static synchronized void enqueueWork(final Context context, final ChannelClient.Channel current_channel) {
         UserError.Log.d(TAG, "EnqueueWork enter");
-        if (client == null || current_channel == null) {
+        if (context == null || current_channel == null) {
             UserError.Log.d(TAG, "Enqueue Work: Null input data!!");
             return;
         }
-        googleApiClient = client;
+        appContext = context.getApplicationContext();
         channel = current_channel;
         enqueueWork(xdrip.getAppContext(), ProcessAPKChannelDownload.class, Constants.APK_DOWNLOAD_JOB_ID, new Intent());
     }

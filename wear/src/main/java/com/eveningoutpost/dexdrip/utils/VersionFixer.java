@@ -86,8 +86,17 @@ public class VersionFixer {
         if (buffer == null) return;
         if (DemiGod.isPresent()) {
             runDemiGodPackageInstaller(buffer);
-        } else {
-            UserError.Log.d(TAG, "Trying adb install");
+            return;
+        }
+        // Ordinary (non-privileged) builds: use the standard PackageInstaller.Session API.
+        // With REQUEST_INSTALL_PACKAGES declared, this shows a one-tap system "Install
+        // update?" confirmation - no ADB or root needed. Fall back to the adb path only if
+        // that fails (e.g. permission not yet granted by the user).
+        try {
+            UserError.Log.d(TAG, "Trying standard PackageInstaller session (no adb/root needed)");
+            installPackage(xdrip.getAppContext(), buffer, BuildConfig.APPLICATION_ID);
+        } catch (Exception e) {
+            UserError.Log.e(TAG, "Standard PackageInstaller session failed, falling back to adb install: " + e);
             AdbInstaller.install(buffer);
         }
     }
@@ -166,7 +175,7 @@ public class VersionFixer {
                 context,
                 sessionId,
                 new Intent(ACTION_INSTALL_COMPLETE),
-                0);
+                PendingIntent.FLAG_IMMUTABLE);
         return pendingIntent.getIntentSender();
     }
 

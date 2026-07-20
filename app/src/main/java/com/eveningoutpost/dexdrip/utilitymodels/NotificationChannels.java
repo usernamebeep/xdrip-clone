@@ -110,7 +110,14 @@ public class NotificationChannels {
     private static String my_text_hash(NotificationChannel x) {
         String res = "";
         if (x.getSound() != null) res += "\uD83C\uDFB5"; // �
-        if (x.shouldVibrate()) res += "\uD83D\uDCF3"; // �
+        if (x.shouldVibrate()) {
+            res += "\uD83D\uDCF3"; //
+            // Include the actual pattern, not just the presence of vibration - channels are
+            // immutable after creation, so notifications sharing a channel id (eg. high vs low
+            // BG alerts) would otherwise be stuck with whichever pattern was created first.
+            final long[] pattern = x.getVibrationPattern();
+            if (pattern != null) res += Arrays.hashCode(pattern);
+        }
         if (x.shouldShowLights()) res += "\uD83D\uDCA1"; // �
         res = (res.equals("")) ? res : "  " + res;
 
