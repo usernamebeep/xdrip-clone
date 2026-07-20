@@ -372,7 +372,7 @@ public class Home extends ActivityWithMenu implements ActivityCompat.OnRequestPe
         xdrip.checkForcedEnglish(Home.this);
 
         super.onCreate(savedInstanceState);
-        setTheme(R.style.AppThemeToolBarLite); // for toolbar mode
+        setTheme(R.style.HomeThemeToolBarLite); // for toolbar mode, MaterialComponents descendant for MaterialButton support
 
 
         Injectors.getHomeShelfComponent().inject(this);

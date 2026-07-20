@@ -5,13 +5,25 @@
         <item name="android:layout_marginTop">16dp</item>
         <item name="android:background">?android:attr/listDivider</item>
     </style>
-        <style name="AppTheme" parent="Theme.MaterialComponents">
+        <style name="AppTheme" parent="Theme.AppCompat">
+        <item name="android:windowBackground">@drawable/holo_background</item>
+        <item name="android:actionBarStyle">@style/MyActionBar</item>
+        <item name="android:textColor">@android:color/white</item>
+    </style>
+    <style name="HomeTheme" parent="Theme.MaterialComponents">
         <item name="android:windowBackground">@drawable/holo_background</item>
         <item name="android:actionBarStyle">@style/MyActionBar</item>
         <item name="android:textColor">@android:color/white</item>
         <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorPrimaryDark">#212121</item>
+        <item name="colorAccent">@color/colorPrimary</item>
+    </style>
+    <style name="HomeThemeToolBarLite" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="android:actionBarStyle">@style/MyActionBar</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">#212121</item>
+        <item name="colorAccent">@color/colorPrimary</item>
     </style>
     <style name="AppThemeReference" parent="Theme.AppCompat">
         <item name="android:background">#212121</item>
