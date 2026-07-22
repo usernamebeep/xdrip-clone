@@ -520,14 +520,13 @@ public class Notifications extends IntentService {
         if (wakeIntent != null)
             alarm.cancel(wakeIntent);
         wakeIntent = PendingIntent.getService(this, 0, new Intent(this, this.getClass()), PendingIntent.FLAG_IMMUTABLE);
-        // Since API 31, setExactAndAllowWhileIdle()/setExact() throw SecurityException unless the
-        // app holds SCHEDULE_EXACT_ALARM (user-grantable) or USE_EXACT_ALARM - fall back to an
-        // inexact alarm rather than crashing when that permission isn't held.
-        final boolean canScheduleExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S
-                || alarm.canScheduleExactAlarms();
-        if (canScheduleExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, wakeTime, wakeIntent);
-        } else if (canScheduleExact && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        // Alert re-fires are time-critical and must not be delayed by Doze/OEM battery
+        // optimization - setAlarmClock() is exempt from Doze and, unlike
+        // setExactAndAllowWhileIdle()/setExact(), doesn't require the
+        // SCHEDULE_EXACT_ALARM/USE_EXACT_ALARM permission check on API 31+.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarm.setAlarmClock(new AlarmManager.AlarmClockInfo(wakeTime, null), wakeIntent);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             alarm.setExact(AlarmManager.RTC_WAKEUP, wakeTime, wakeIntent);
         } else {
             alarm.set(AlarmManager.RTC_WAKEUP, wakeTime, wakeIntent);

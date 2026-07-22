@@ -524,9 +524,16 @@ public class Notifications extends IntentService {
 
         if (wakeIntent == null) {
             // TODO request code??
-            wakeIntent = PendingIntent.getService(this, 0, new Intent(this, this.getClass()), 0);
+            // FLAG_IMMUTABLE required on API 31+ (targetSdk 34 here) - omitting it throws
+            // IllegalArgumentException at creation time, which as a static field re-created only
+            // once per process would silently drop every BG alert re-fire scheduling attempt
+            // after any process restart until the exception happened to stop recurring.
+            wakeIntent = PendingIntent.getService(this, 0, new Intent(this, this.getClass()), PendingIntent.FLAG_IMMUTABLE);
         }
-        JoH.wakeUpIntent(context, wakeTime - now, wakeIntent);
+        // Alert re-fires are time-critical and must not be delayed by Doze/OEM battery
+        // optimization - always use the reliable setAlarmClock() path (see JoH.wakeUpIntent())
+        // rather than waiting for the buggy_samsung self-detection threshold to kick in.
+        JoH.wakeUpIntent(context, wakeTime - now, wakeIntent, true);
 
 
        /* if (wakeIntent != null)

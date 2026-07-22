@@ -1539,6 +1539,16 @@ public class JoH {
     }
 
     public static long wakeUpIntent(Context context, long delayMs, PendingIntent pendingIntent) {
+        return wakeUpIntent(context, delayMs, pendingIntent, false);
+    }
+
+    // forceReliable bypasses the buggy_samsung detection threshold and always uses
+    // setAlarmClock() - for time-critical wakeups (BG alert re-fires) that must not be delayed by
+    // Doze/OEM battery optimization even before the app has self-detected 4+ missed wakeups on
+    // this device. Not applied unconditionally to every caller of this method since
+    // setAlarmClock() puts a persistent alarm-clock icon in the status bar, which is undesirable
+    // for callers that reschedule frequently (e.g. the BLE collector's own retry timers).
+    public static long wakeUpIntent(Context context, long delayMs, PendingIntent pendingIntent, boolean forceReliable) {
         final long wakeTime = JoH.tsl() + delayMs;
         if (pendingIntent != null) {
             Log.d(TAG, "Scheduling wakeup intent: " + dateTimeText(wakeTime));
@@ -1549,7 +1559,7 @@ public class JoH {
                 Log.e(TAG, "Exception cancelling alarm in wakeUpIntent: " + e);
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (buggy_samsung && Pref.getBoolean("allow_samsung_workaround", true)) {
+                if (forceReliable || (buggy_samsung && Pref.getBoolean("allow_samsung_workaround", true))) {
                     alarm.setAlarmClock(new AlarmManager.AlarmClockInfo(wakeTime, null), pendingIntent);
                 } else {
                     alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, wakeTime, pendingIntent);

@@ -29,14 +29,18 @@ public class XdripNotificationCompat extends NotificationCompat {
 
         builder.setCategory(NotificationCompat.CATEGORY_ALARM);
 
-        // TEST: setOngoing() is in Google's documented Wear OS bridging exclusion list
-        // (developer.android.com/training/wearables/notifications/bridger) - checking whether
-        // Samsung's own mirroring layer honors it too. Android 14+ restored swipe-dismiss for
-        // ongoing notifications, so this should carry minimal UX cost on this device (Android 16).
-        // Revert if inconclusive.
-        builder.setOngoing(true);
-
         final Notification n = builder.build();
+
+        // Marking the notification ongoing suppresses Wear OS/Samsung bridging (confirmed via
+        // real-device testing - ongoing notifications are in Google's documented bridging
+        // exclusion list, developer.android.com/training/wearables/notifications/bridger, and
+        // Samsung's own mirroring layer honors it too). Only do this when the watch is already
+        // independently alerting on its own (setLocalOnly(true) upstream, driven by
+        // watch_alert_mode) - otherwise (e.g. watch_alert_mode "none") this phone notification is
+        // the ONLY alert the user would see on the watch, so it must still be allowed to bridge.
+        if ((n.flags & Notification.FLAG_LOCAL_ONLY) != 0) {
+            n.flags |= Notification.FLAG_ONGOING_EVENT;
+        }
 
         UserError.Log.d(TAG, "NotifCompat: chan=" + id +
                 " group=" + NotificationCompat.getGroup(n) +
