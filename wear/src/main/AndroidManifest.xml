@@ -10,19 +10,34 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- Required since API 34 for any service declaring foregroundServiceType="connectedDevice|location" -->
+    <!-- Required since API 34 for any service declaring foregroundServiceType="connectedDevice" -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
-    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL" />
-    <uses-permission android:name="android.permission.INSTALL_PACKAGES" />
+    <!-- Signature|privileged permissions only granted on the privileged/DemiGod build variant
+         (system-signed or installed as a system app) - a non-privileged build simply never gets
+         them, which is expected and harmless, so the ProtectedPermissions warning is suppressed
+         here rather than removing permissions this build variant genuinely needs. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_PRIVILEGED"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.INTERACT_ACROSS_USERS_FULL"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.INSTALL_PACKAGES"
+        tools:ignore="ProtectedPermissions" />
     <!-- lets a non-privileged (non-DemiGod) build self-update via PackageInstaller.Session
          with a one-tap system confirmation dialog, no ADB/root needed -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.DELETE_PACKAGES" />
-    <uses-permission android:name="android.permission.CHANGE_COMPONENT_ENABLED_STATE" />
-    <uses-permission android:name="android.permission.MANAGE_DEVICE_ADMINS" />
+    <uses-permission
+        android:name="android.permission.DELETE_PACKAGES"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.CHANGE_COMPONENT_ENABLED_STATE"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission
+        android:name="android.permission.MANAGE_DEVICE_ADMINS"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission
         android:name="android.permission.DEVICE_POWER"
         tools:ignore="ProtectedPermissions" />
@@ -61,6 +76,14 @@
         <uses-library
             android:name="com.google.android.wearable"
             android:required="false" />
+
+        <!-- Declares this watch app can run without a connected/paired companion phone -
+             genuinely true here, since DexCollectionService can independently collect from the
+             sensor via BLE when the phone is unreachable (see the staleness-based failover in
+             Notifications.checkPhoneDataStalenessFailover). -->
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="true" />
 
         <meta-data
             android:name="AA_DB_NAME"
@@ -169,36 +192,41 @@
             android:name=".ListenerService"
             android:exported="true">
             <!--
-            BIND_LISTENER is Play Services' modern universal wake-up action, superseding the
-            per-action CAPABILITY_CHANGED/DATA_CHANGED/MESSAGE_RECEIVED filters that used to be
-            declared here. Mixing BIND_LISTENER with the legacy per-action filters on the same
-            service caused Play Services to onNullBinding() the service instead of ever invoking
-            onMessageReceived - removing the legacy filters and keeping only BIND_LISTENER fixed
-            delivery. No <data> path matching is needed; this wakes the service for any event.
+            BIND_LISTENER was officially deprecated in 2016 in favor of fine-grained per-action
+            intent filters (CAPABILITY_CHANGED/DATA_CHANGED/MESSAGE_RECEIVED with <data> path
+            matching), which is what lint's WearableBindListener check expects here instead.
+            However, on this app's actual Play Services version, mixing BIND_LISTENER with those
+            legacy per-action filters on the same service caused Play Services to onNullBinding()
+            the service instead of ever invoking onMessageReceived - confirmed via real-device
+            testing that removing the legacy filters and keeping only BIND_LISTENER is what
+            actually fixed message delivery. Do not revert this to satisfy the lint warning
+            without re-confirming fine-grained filters alone deliver messages reliably first.
             -->
             <intent-filter>
-                <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
+                <action
+                    android:name="com.google.android.gms.wearable.BIND_LISTENER"
+                    tools:ignore="WearableBindListener" />
             </intent-filter>
         </service>
         <service
             android:name=".services.G5CollectionService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="connectedDevice|location"></service>
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".services.Ob1G5CollectionService"
             android:enabled="true"
-            android:foregroundServiceType="connectedDevice|location" />
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".services.DexCollectionService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="connectedDevice|location" />
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".services.DexShareCollectionService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="connectedDevice|location" />
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".utilitymodels.Notifications"
             android:exported="false" />
