@@ -194,9 +194,39 @@ public class Notifications extends IntentService {
  */
 
 
+    // enable_wearG5 is documented ("Connect to BT Collector when phone is out-of-range") as if it
+    // already auto-detects the phone being unreachable, but nothing in this codebase actually
+    // watches BG data staleness - CollectionServiceStarter only ever checks the static
+    // enable_wearG5/force_wearG5 preferences. This closes that gap: if no fresh reading has
+    // arrived (from either the phone or the watch's own past collection) for over
+    // STALE_FAILOVER_MS, and the user has opted into enable_wearG5 but not already permanently
+    // forced the watch collector on via force_wearG5, start the watch's own BLE connection as a
+    // fallback - then stop it again once fresh data resumes, so it doesn't run (and drain
+    // battery) any longer than actually needed.
+    private static final long STALE_FAILOVER_MS = 15 * 60 * 1000;
+    private static volatile boolean autoStartedWearCollector = false;
+
+    private void checkPhoneDataStalenessFailover(Context context) {
+        if (!Pref.getBooleanDefaultFalse("enable_wearG5") || Pref.getBooleanDefaultFalse("force_wearG5")) {
+            return;
+        }
+        final BgReading last = BgReading.last();
+        final boolean stale = (last == null) || (JoH.tsl() - last.timestamp > STALE_FAILOVER_MS);
+        if (stale && !autoStartedWearCollector) {
+            Log.d(TAG, "checkPhoneDataStalenessFailover: no fresh BG data for over 15 minutes - starting watch's own sensor connection as fallback");
+            autoStartedWearCollector = true;
+            CollectionServiceStarter.startBtService(context);
+        } else if (!stale && autoStartedWearCollector) {
+            Log.d(TAG, "checkPhoneDataStalenessFailover: fresh BG data resumed - stopping the auto-started fallback connection");
+            autoStartedWearCollector = false;
+            CollectionServiceStarter.stopBtService(context);
+        }
+    }
+
     private void FileBasedNotifications(Context context) {
         ReadPerfs(context);
         Sensor sensor = Sensor.currentSensor();
+        checkPhoneDataStalenessFailover(context);
 
         final BgReading bgReading = BgReading.last();
         if (bgReading == null) {

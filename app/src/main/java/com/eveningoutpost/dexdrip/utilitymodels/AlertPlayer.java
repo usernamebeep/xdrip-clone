@@ -252,9 +252,13 @@ public class AlertPlayer {
 
         BlueJayEntry.cancelNotifyIfEnabled();
 
-        if (Pref.getBooleanDefaultFalse("bg_notifications_watch") ) {
-            startWatchUpdaterService(ctx, WatchUpdaterService.ACTION_SNOOZE_ALERT, TAG, "repeatTime", "" + repeatTime);
-        }
+        // Relay unconditionally (matching the wear module's own always-on snooze relay in the
+        // other direction, wear/.../AlertPlayer.java's Snooze()) so snoozing on either device
+        // snoozes the other - "bg_notifications_watch" is a stale preference key that predates
+        // the watch_alert_mode tri-state system and is no longer set true by any current UI,
+        // which silently disabled this whole relay. If no watch is reachable, this call is a
+        // harmless no-op (same Wearable Data Layer send used throughout this codebase).
+        startWatchUpdaterService(ctx, WatchUpdaterService.ACTION_SNOOZE_ALERT, TAG, "repeatTime", "" + repeatTime);
         if (Pref.getBooleanDefaultFalse("pref_amazfit_enable_key")
                 && Pref.getBooleanDefaultFalse("pref_amazfit_BG_alert_enable_key")) {
             Amazfitservice.start("xDrip_AlarmCancel");
