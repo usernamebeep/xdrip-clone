@@ -543,12 +543,19 @@ public class AlertPlayer {
 
     @SuppressWarnings("deprecation")
     private static void fireVibration(Context ctx, long[] pattern) {
+        // A PARTIAL_WAKE_LOCK keeps the CPU running through this call regardless of screen/ambient
+        // state - without it, vibration was only reliably felt when the screen happened to already
+        // be on (e.g. from a wrist-raise or tap), since the CPU could otherwise be power-gated
+        // before the Vibrator HAL actually processes the request.
+        final android.os.PowerManager.WakeLock wl = JoH.getWakeLock(ctx, "xdrip-alert-vibrate", 5000);
         try {
             final Vibrator vibrator = getVibrator(ctx);
             if (vibrator == null || !vibrator.hasVibrator()) return;
             vibrator.vibrate(pattern, -1);
         } catch (Exception e) {
             UserError.Log.e(TAG, "vibrateDirect failed: " + e);
+        } finally {
+            JoH.releaseWakeLock(wl);
         }
     }
 

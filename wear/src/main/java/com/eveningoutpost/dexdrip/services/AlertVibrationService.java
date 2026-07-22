@@ -16,6 +16,7 @@ import android.os.VibratorManager;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+import com.eveningoutpost.dexdrip.models.JoH;
 import com.eveningoutpost.dexdrip.models.UserError;
 import com.eveningoutpost.dexdrip.utilitymodels.Notifications;
 
@@ -32,12 +33,21 @@ public class AlertVibrationService extends Service {
     private static final String TAG = AlertVibrationService.class.getSimpleName();
     public static final String EXTRA_PATTERN = "pattern";
     private static final String CHANNEL_ID = "xdrip_alert_vibration_service";
+    private android.os.PowerManager.WakeLock wakeLock;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForeground(Notifications.alertVibrationServiceNotificationId, buildNotification());
         final long[] pattern = (intent != null) ? intent.getLongArrayExtra(EXTRA_PATTERN) : null;
         if (pattern != null) {
+            long total = 400;
+            for (long ms : pattern) total += ms;
+            // A PARTIAL_WAKE_LOCK spanning this whole sequence (delay + vibrate + stop buffer)
+            // keeps the CPU running regardless of screen/ambient state - without it, vibration was
+            // only reliably felt when the screen happened to already be on, since the CPU could
+            // otherwise be power-gated before the delayed fire() callback or the Vibrator HAL
+            // itself actually runs. Released in onDestroy() once this service stops.
+            wakeLock = JoH.getWakeLock(getApplicationContext(), "xdrip-alert-vibration-service", (int) total + 1500);
             // startForeground() returning doesn't necessarily mean the system has already
             // finished recognizing this process as foreground - vibrating in the very next line
             // still produced the wrong/default pattern on a real device (confirmed via real-device
@@ -48,6 +58,12 @@ public class AlertVibrationService extends Service {
             stopSelf();
         }
         return START_NOT_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+        JoH.releaseWakeLock(wakeLock);
+        super.onDestroy();
     }
 
     private Notification buildNotification() {
