@@ -953,7 +953,20 @@ public class EditAlertActivity extends ActivityWithMenu {
                 JoH.static_toast_long(getString(R.string.volume_profile_set_to_silent));
             }
 
-            AlertType.testAlert(alertText.getText().toString(), above, threshold, allDay, 1, mp3_file, timeStart, timeEnd, overrideSilentMode, forceSpeaker, defaultSnooze, vibrate, mContext);
+            final String name = alertText.getText().toString();
+            final double finalThreshold = threshold;
+            final boolean finalAllDay = allDay;
+            final boolean finalOverrideSilentMode = overrideSilentMode;
+            final boolean finalForceSpeaker = forceSpeaker;
+            final int finalDefaultSnooze = defaultSnooze;
+            final boolean finalVibrate = vibrate;
+            final int finalTimeStart = timeStart;
+            final int finalTimeEnd = timeEnd;
+            // Off the UI thread: building/posting the notification may need to query the watch
+            // over the Data Layer API (see AlertPlayer.isWatchAlertingNow), which blocks and is
+            // not permitted on the main thread - matching how a real alert is triggered from
+            // Notifications' IntentService background thread, not the UI thread.
+            new Thread(() -> AlertType.testAlert(name, above, finalThreshold, finalAllDay, 1, mp3_file, finalTimeStart, finalTimeEnd, finalOverrideSilentMode, finalForceSpeaker, finalDefaultSnooze, finalVibrate, mContext)).start();
         } catch (NullPointerException e) {
             JoH.static_toast_long("Snooze value is not a number - cannot test");
         }

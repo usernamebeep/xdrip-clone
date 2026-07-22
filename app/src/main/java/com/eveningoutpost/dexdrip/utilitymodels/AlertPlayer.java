@@ -47,7 +47,15 @@ import com.eveningoutpost.dexdrip.wearintegration.WatchUpdaterService;
 import com.eveningoutpost.dexdrip.services.broadcastservice.Const;
 import com.eveningoutpost.dexdrip.xdrip;
 
+import com.google.android.gms.tasks.Tasks;
+import com.google.android.gms.wearable.DataItem;
+import com.google.android.gms.wearable.DataItemBuffer;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.Wearable;
+
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 import lombok.Getter;
 
@@ -113,6 +121,10 @@ public class AlertPlayer {
     @Getter
     private volatile static long lastVolumeChange = 0;
     private final static String TAG = AlertPlayer.class.getSimpleName();
+    // Must match ListenerService.WEARABLE_ALERT_STATE_PATH in the wear module. Queried directly
+    // rather than pushed to us, because WatchUpdaterService.onMessageReceived() does not reliably
+    // fire for the equivalent message-based path on all phone/watch pairings.
+    private final static String WEARABLE_ALERT_STATE_PATH = "/xdrip_plus_watch_alert_state";
     private volatile MediaPlayer mediaPlayer = null;
     private final AudioManager manager = (AudioManager)xdrip.getAppContext().getSystemService(Context.AUDIO_SERVICE);
     volatile int volumeBeforeAlert = -1;
@@ -508,6 +520,32 @@ public class AlertPlayer {
         return !(Pref.getBooleanDefaultFalse("no_alarms_during_calls") && (JoH.isOngoingCall()));
     }
 
+    // Queries the watch directly for whether it's currently going to raise this BG alert itself
+    // (reflects watch_alert_mode: "always", or "out_of_range" while actively the forced BLE
+    // collector). A direct query rather than waiting on a pushed value, since the message-based
+    // sync of the equivalent flag is not reliably delivered on all phone/watch pairings. Defaults
+    // to false (bridge normally) on any failure/timeout, so a watch that can't be reached doesn't
+    // cause alerts to go silently undelivered.
+    private static boolean isWatchAlertingNow(Context context) {
+        try {
+            final Uri uri = new Uri.Builder().scheme("wear").path(WEARABLE_ALERT_STATE_PATH).build();
+            final DataItemBuffer buffer = Tasks.await(Wearable.getDataClient(context).getDataItems(uri), 3, TimeUnit.SECONDS);
+            try {
+                for (DataItem item : buffer) {
+                    final DataMap map = DataMapItem.fromDataItem(item).getDataMap();
+                    if (map.containsKey("watch_alerting")) {
+                        return map.getBoolean("watch_alerting");
+                    }
+                }
+            } finally {
+                buffer.release();
+            }
+        } catch (Exception e) {
+            Log.d(TAG, "isWatchAlertingNow query failed (assuming false): " + e);
+        }
+        return false;
+    }
+
     protected void VibrateNotifyMakeNoise(Context context, AlertType alert, String bgValue, int minsFromStartPlaying) {
         Log.d(TAG, "VibrateNotifyMakeNoise called minsFromStartedPlaying = " + minsFromStartPlaying);
         Log.d("ALARM", "setting vibrate alarm");
@@ -531,12 +569,11 @@ public class AlertPlayer {
         String contentLog = "BG " + highlowLog + " ALERT: " + bgValue + "  (@" + JoH.hourMinuteString() + ")";
         final Intent intent = new Intent(context, SnoozeActivity.class);
 
-        // bg_notifications_watch already reflects whether the watch will raise this alert itself
-        // (covers watch_alert_mode "always" and "out_of_range", the latter checking forced-wear
-        // internally) - gating on Home.get_forced_wear() here too meant this was only ever true
-        // while the watch was actively the forced BLE collector, so "always" mode (the common
-        // case) never suppressed the phone's own copy, producing a duplicate on the watch.
-        boolean localOnly = PersistentStore.getBoolean("bg_notifications_watch");
+        // Ask the watch directly whether it's going to raise this alert itself right now (covers
+        // watch_alert_mode "always", and "out_of_range" while actively the forced BLE collector).
+        // If so, don't bridge our own copy - the watch already has one. This runs on the
+        // IntentService's background thread (not the UI thread), so the blocking query is safe.
+        boolean localOnly = isWatchAlertingNow(context);
         Log.d(TAG, "NotificationCompat.Builder localOnly=" + localOnly);
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationChannels.BG_ALERT_CHANNEL)//KS Notification
                 .setSmallIcon(R.drawable.ic_action_communication_invert_colors_on)

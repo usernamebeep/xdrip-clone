@@ -71,6 +71,8 @@ import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.PutDataRequest;
 import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableListenerService;
 import com.google.gson.Gson;
@@ -137,6 +139,11 @@ public class ListenerService extends WearableListenerService {
     private static final String WEARABLE_CALIBRATION_DATA_PATH = "/xdrip_plus_watch_cal_data";//KS
     private static final String WEARABLE_SENSOR_DATA_PATH = "/xdrip_plus_watch_sensor_data";//KS
     private static final String WEARABLE_PREF_DATA_PATH = "/xdrip_plus_watch_pref_data";//KS
+    // Polled directly by the phone via DataClient.getDataItems() rather than delivered through
+    // a listener callback - the message-based WEARABLE_PREF_DATA_PATH push above is not reliably
+    // received by WatchUpdaterService.onMessageReceived() on all phone/watch pairings, so the
+    // phone can't depend on a push arriving before it needs to decide whether to bridge a BG alert.
+    private static final String WEARABLE_ALERT_STATE_PATH = "/xdrip_plus_watch_alert_state";
     private static final String WEARABLE_ACTIVEBTDEVICE_DATA_PATH = "/xdrip_plus_watch_activebtdevice_data";//KS
     private static final String WEARABLE_ALERTTYPE_DATA_PATH = "/xdrip_plus_watch_alerttype_data";//KS
     public static final String WEARABLE_SNOOZE_ALERT = "/xdrip_plus_snooze_payload";
@@ -195,7 +202,12 @@ public class ListenerService extends WearableListenerService {
     private static boolean bBenchmarkLogs = false;
     private static boolean bBenchmarkRandom = false;
     private static boolean bBenchmarkDup = false;
-    private static boolean bInitPrefs = true;
+    // Set once syncPrefData() actually runs, confirming the phone's reply was received - the
+    // init-prefs request below is otherwise fire-and-forget (sendMessage()'s success callback only
+    // confirms local handoff to Play Services, not that the phone's WatchUpdaterService actually
+    // got it), so on a fresh install the request can silently vanish and never be retried without
+    // this being retried on a timer instead of only once ever.
+    private static volatile boolean bPrefsConfirmedReceived = false;
     //Restart collector for change in the following received from phone in syncPrefData():
     private static final Set<String> restartCollectorPrefs = new HashSet<String>(Arrays.asList(
             new String[]{
@@ -290,11 +302,10 @@ public class ListenerService extends WearableListenerService {
 
                             for (Node node : capabilityInfo.getNodes()) {
 
-                                if (bInitPrefs) {
+                                if (!bPrefsConfirmedReceived && JoH.ratelimit("wear-init-prefs-request", 60)) {
                                     Log.d(TAG, "doInBackground Request Phone's Preferences: WEARABLE_INITPREFS_PATH");
                                     sendMessagePayload(node, "WEARABLE_INITPREFS_PATH", WEARABLE_INITPREFS_PATH, null);
                                     sendMessagePayload(node, "WEARABLE_INITDB_PATH", WEARABLE_INITDB_PATH, null);
-                                    bInitPrefs = false;
                                 }
                                 Log.d(TAG, "doInBackground path: " + path);
                                 switch (path) {
@@ -780,12 +791,27 @@ public class ListenerService extends WearableListenerService {
         dataMap.putBoolean("persistent_high_alert_enabled_watch", mPrefs.getBoolean("persistent_high_alert_enabled", false));
         dataMap.putBoolean("show_wear_treatments", show_wear_treatments);
         sendData(WEARABLE_PREF_DATA_PATH, dataMap.toByteArray());
+        pushAlertStateDataItem();
 
         SharedPreferences.Editor prefs = PreferenceManager.getDefaultSharedPreferences(this).edit();
         if (!node_wearG5.equals(dataMap.getString("node_wearG5", ""))) {
             Log.d(TAG, "sendPrefSettings save to SharedPreferences - node_wearG5:" + dataMap.getString("node_wearG5", ""));
             prefs.putString("node_wearG5", dataMap.getString("node_wearG5", ""));
             prefs.apply();
+        }
+    }
+
+    // Fire-and-forget: writes the watch's current alert-state to a DataItem the phone can query
+    // synchronously on demand (see WEARABLE_ALERT_STATE_PATH above for why this isn't push-based).
+    private void pushAlertStateDataItem() {
+        try {
+            final PutDataMapRequest request = PutDataMapRequest.create(WEARABLE_ALERT_STATE_PATH);
+            request.getDataMap().putBoolean("watch_alerting", AlertPlayer.watchAlertsEnabled());
+            request.getDataMap().putLong("time", new Date().getTime());
+            final PutDataRequest putRequest = request.asPutDataRequest().setUrgent();
+            Wearable.getDataClient(this).putDataItem(putRequest);
+        } catch (Exception e) {
+            Log.e(TAG, "pushAlertStateDataItem failed: " + e);
         }
     }
 
@@ -896,6 +922,11 @@ public class ListenerService extends WearableListenerService {
         mPrefs = PreferenceManager.getDefaultSharedPreferences(context);
         listenForChangeInSettings();
         setupStepSensor();
+        // Push a fresh alert-state DataItem as soon as this service starts, rather than waiting
+        // for a settings change or peer-connect event - closes the window where the phone could
+        // query a stale/absent value right after this process (re)starts, before any of those
+        // trigger points have fired again in this process's lifetime.
+        pushAlertStateDataItem();
         super.onCreate();
     }
 
@@ -1917,6 +1948,7 @@ public class ListenerService extends WearableListenerService {
     }
 
     private synchronized void syncPrefData(DataMap dataMap) {//KS
+        bPrefsConfirmedReceived = true;
         SharedPreferences.Editor prefs = PreferenceManager.getDefaultSharedPreferences(this).edit();
         final PowerManager.WakeLock wl = JoH.getWakeLock(getApplicationContext(), "watchlistener-SYNC_PREF_DATA",120000);
         try {
@@ -2748,6 +2780,7 @@ public class ListenerService extends WearableListenerService {
             Log.d(TAG, "syncBGData BG data has changed, refresh watchface, phone battery=" + battery );
             resendData(getApplicationContext(), battery);
             CustomComplicationProviderService.refresh();
+            Notifications.start();
         }
         else
             Log.d(TAG, "syncBGData BG data has NOT changed, do not refresh watchface, phone battery=" + battery );

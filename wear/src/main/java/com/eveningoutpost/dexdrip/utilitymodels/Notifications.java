@@ -60,7 +60,7 @@ import java.util.List;
  */
 public class Notifications extends IntentService {
     public static final long[] vibratePattern = {0, 1000, 300, 1000, 300, 1000};
-    public static final long[] lowAlertVibratePattern = {0, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50};
+    public static final long[] lowAlertVibratePattern = {0, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50};
     public static boolean bg_notifications;
     public static boolean bg_persistent_high_alert_enabled;
     public static boolean bg_ongoing;
@@ -93,21 +93,26 @@ public class Notifications extends IntentService {
     Bitmap iconBitmap;
     Bitmap notifiationBitmap;
 
-    final static int BgNotificationId = 001;
-    final static int calibrationNotificationId = 002;
-    final static int doubleCalibrationNotificationId = 003;
-    final static int extraCalibrationNotificationId = 004;
-    public static final int exportCompleteNotificationId = 005;
-    final static int ongoingNotificationId = 8811;
+    // Offset from the phone app's Notifications.java IDs (which start at 1): both modules share
+    // the same package name, so when a phone notification bridges to a paired watch, an ID
+    // collision here would silently overwrite (or be overwritten by) the watch's own native
+    // notification of the same alert type in the watch's notification manager.
+    final static int BgNotificationId = 20001;
+    final static int calibrationNotificationId = 20002;
+    final static int doubleCalibrationNotificationId = 20003;
+    final static int extraCalibrationNotificationId = 20004;
+    public static final int exportCompleteNotificationId = 20005;
+    final static int ongoingNotificationId = 28811;
     private static final String ONGOING_CHANNEL_ID = "xdrip_ongoing_collection";
-    public static final int exportAlertNotificationId = 006;
-    public static final int uncleanAlertNotificationId = 007;
-    public static final int missedAlertNotificationId = 010;
-    public static final int riseAlertNotificationId = 011;
-    public static final int failAlertNotificationId = 012;
-    public static final int lowPredictAlertNotificationId = 013;
-    public static final int parakeetMissingId = 014;
-    public static final int persistentHighAlertNotificationId = 015;
+    public static final int exportAlertNotificationId = 20006;
+    public static final int uncleanAlertNotificationId = 20007;
+    public static final int missedAlertNotificationId = 20008;
+    public static final int riseAlertNotificationId = 20009;
+    public static final int failAlertNotificationId = 20010;
+    public static final int lowPredictAlertNotificationId = 20011;
+    public static final int parakeetMissingId = 20012;
+    public static final int persistentHighAlertNotificationId = 20013;
+    public static final int alertVibrationServiceNotificationId = 20014;
     private static boolean low_notifying = false;
 
     private static final int CALIBRATION_REQUEST_MAX_FREQUENCY = (60 * 60 * 8); // don't bug for extra calibrations more than every 8 hours

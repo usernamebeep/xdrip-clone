@@ -163,9 +163,18 @@ public class DexCollectionService extends Service implements BtCallBack {
     private final String DEFAULT_BT_PIN = getDefaultPin();
     private final UUID blukonDataService = UUID.fromString(HM10Attributes.BLUKON_SERVICE);
     public DexCollectionService dexCollectionService;
+    // TEST: tracks the running instance so AlertPlayer.vibrateDirect() can fetch the Vibrator
+    // service from an active foreground service's Context instead of the background
+    // IntentService context the alert-checking call chain otherwise runs on - see
+    // AlertPlayer.getForegroundServiceContext(). Revert if inconclusive.
+    private static volatile DexCollectionService runningForegroundInstance;
     long lastPacketTime;
     private SharedPreferences prefs;
     private static volatile ScanMeister scanMeister;
+
+    public static Context getRunningForegroundContext() {
+        return runningForegroundInstance;
+    }
     private BluetoothAdapter mBluetoothAdapter;
     private String mDeviceAddress;
     private volatile long delay_offset = 0;
@@ -1104,6 +1113,7 @@ public class DexCollectionService extends Service implements BtCallBack {
 
         foregroundServiceStarter = new ForegroundServiceStarter(getApplicationContext(), this);
         foregroundServiceStarter.start();
+        runningForegroundInstance = this;
         //mContext = getApplicationContext();
         dexCollectionService = this;
         prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -1183,6 +1193,7 @@ public class DexCollectionService extends Service implements BtCallBack {
         status("Shutdown");
         super.onDestroy();
         Log.d(TAG, "onDestroy entered");
+        if (runningForegroundInstance == this) runningForegroundInstance = null;
         close();
         foregroundServiceStarter.stop();
 

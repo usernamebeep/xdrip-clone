@@ -66,7 +66,7 @@ import lombok.val;
  */
 public class Notifications extends IntentService {
     public static final long[] vibratePattern = {0, 1000, 300, 1000, 300, 1000};
-    public static final long[] lowAlertVibratePattern = {0, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50};
+    public static final long[] lowAlertVibratePattern = {0, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50};
     public static boolean bg_notifications;
     public static boolean bg_notifications_watch;
     public static boolean bg_persistent_high_alert_enabled_watch;

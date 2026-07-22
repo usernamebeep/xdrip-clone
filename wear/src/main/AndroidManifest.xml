@@ -45,6 +45,9 @@
     <!-- Required from API 33 (Android 13) - without it, notifications are silently
          dropped when targetSdk >= 33, even though this manifest requests the permission. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Matches app/src/main/AndroidManifest.xml - needed for AlarmManager.setAlarmClock()
+         (DexCollectionService's failover/retry timers) on API 33+, else SecurityException. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <application
         android:name=".xdrip"
@@ -189,14 +192,21 @@
         <service
             android:name=".services.DexCollectionService"
             android:enabled="true"
-            android:exported="true" />
+            android:exported="true"
+            android:foregroundServiceType="connectedDevice|location" />
         <service
             android:name=".services.DexShareCollectionService"
             android:enabled="true"
-            android:exported="true" />
+            android:exported="true"
+            android:foregroundServiceType="connectedDevice|location" />
         <service
             android:name=".utilitymodels.Notifications"
             android:exported="false" />
+        <service
+            android:name=".services.AlertVibrationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".services.SnoozeOnNotificationDismissService"
             android:exported="false" />

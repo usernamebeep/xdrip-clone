@@ -115,7 +115,7 @@ dependencies {
     // matches app/build.gradle's play-services-wearable version so the modern Task-based
     // Wearable Data Layer API (MessageClient/CapabilityClient/NodeClient/ChannelClient) stays
     // identical on both sides of the sync link
-    implementation 'com.google.android.gms:play-services-wearable:15.0.0'
+    implementation 'com.google.android.gms:play-services-wearable:20.0.1'
     // modern complications API for Wear OS 3+ (ComplicationDataSourceService) - only the
     // complications-data-source surface is added, not the full androidx.wear.watchface engine
     implementation 'androidx.wear.watchface:watchface-complications-data-source:1.2.1'

@@ -29,6 +29,13 @@ public class XdripNotificationCompat extends NotificationCompat {
 
         builder.setCategory(NotificationCompat.CATEGORY_ALARM);
 
+        // TEST: setOngoing() is in Google's documented Wear OS bridging exclusion list
+        // (developer.android.com/training/wearables/notifications/bridger) - checking whether
+        // Samsung's own mirroring layer honors it too. Android 14+ restored swipe-dismiss for
+        // ongoing notifications, so this should carry minimal UX cost on this device (Android 16).
+        // Revert if inconclusive.
+        builder.setOngoing(true);
+
         final Notification n = builder.build();
 
         UserError.Log.d(TAG, "NotifCompat: chan=" + id +

@@ -15,6 +15,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 import android.preference.PreferenceManager;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
@@ -28,6 +30,8 @@ import com.eveningoutpost.dexdrip.models.JoH;
 import com.eveningoutpost.dexdrip.models.UserError;
 import com.eveningoutpost.dexdrip.models.UserError.Log;
 import com.eveningoutpost.dexdrip.R;
+import com.eveningoutpost.dexdrip.services.AlertVibrationService;
+import com.eveningoutpost.dexdrip.services.DexCollectionService;
 import com.eveningoutpost.dexdrip.services.SnoozeOnNotificationDismissService;
 import com.eveningoutpost.dexdrip.SnoozeActivity;
 
@@ -112,12 +116,16 @@ public class AlertPlayer {
     private int volumeBeforeAlert = -1;
     private int volumeForThisAlert = -1;
 
-    // Separate channel per direction so each keeps its own vibration pattern - channels are
-    // immutable after creation on Android O+, so a single shared channel could never switch
-    // between vibratePattern and lowAlertVibratePattern once created.
     private static final String BG_ALERT_CHANNEL_HIGH = "xdrip_bg_alert_high";
     private static final String BG_ALERT_CHANNEL_LOW = "xdrip_bg_alert_low";
     private static volatile boolean bgAlertChannelsReady = false;
+
+    // "-directvibrate" forces a fresh channel id, distinct from the old channel-vibration-based
+    // ids that shipped previously - see ensureBgAlertChannels()/vibrateDirect() below for why the
+    // channel itself no longer carries a vibration pattern at all.
+    private static String bgAlertChannelId(boolean above) {
+        return (above ? BG_ALERT_CHANNEL_HIGH : BG_ALERT_CHANNEL_LOW) + "-directvibrate";
+    }
 
     final static int ALERT_PROFILE_HIGH = 1;
     final static int ALERT_PROFILE_ASCENDING = 2;
@@ -485,15 +493,63 @@ public class AlertPlayer {
     private void ensureBgAlertChannels(Context ctx) {
         if (bgAlertChannelsReady || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         final NotificationManager mNotifyMgr = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-        final NotificationChannel high = new NotificationChannel(BG_ALERT_CHANNEL_HIGH, "High BG Alerts", NotificationManager.IMPORTANCE_HIGH);
-        high.setVibrationPattern(Notifications.vibratePattern);
-        high.enableVibration(true);
+        // No channel-level vibration configured here on purpose - vibration is fired directly
+        // via vibrateDirect() instead (see below) so Wear OS's own notification-effect
+        // suppression (com.google.wear.services.notification.stream.listener.
+        // NotificationCollectorService, confirmed via dumpsys notification's suppressor_changed
+        // log lines) can't intercept and override it with its own generic haptic.
+        final NotificationChannel high = new NotificationChannel(bgAlertChannelId(true), "High BG Alerts", NotificationManager.IMPORTANCE_HIGH);
         mNotifyMgr.createNotificationChannel(high);
-        final NotificationChannel low = new NotificationChannel(BG_ALERT_CHANNEL_LOW, "Low BG Alerts", NotificationManager.IMPORTANCE_HIGH);
-        low.setVibrationPattern(Notifications.lowAlertVibratePattern);
-        low.enableVibration(true);
+        final NotificationChannel low = new NotificationChannel(bgAlertChannelId(false), "Low BG Alerts", NotificationManager.IMPORTANCE_HIGH);
         mNotifyMgr.createNotificationChannel(low);
         bgAlertChannelsReady = true;
+    }
+
+    private static Vibrator getVibrator(Context ctx) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            final VibratorManager vm = (VibratorManager) ctx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+            return vm != null ? vm.getDefaultVibrator() : null;
+        }
+        return (Vibrator) ctx.getSystemService(Context.VIBRATOR_SERVICE);
+    }
+
+    // Fires the pattern via the Vibrator service rather than a notification channel's vibration.
+    // NotificationCollectorService only observes the StatusBarNotification pipeline (i.e. things
+    // posted through NotificationManager.notify()) - a direct Vibrator call isn't part of that
+    // pipeline at all, so no NotificationListenerService has a hook to intercept or suppress it.
+    // CONFIRMED via real-device testing: that alone wasn't sufficient - Wear OS also silently
+    // substitutes a default pattern for vibration requests made from a background/IntentService
+    // context (this whole call chain otherwise runs on Notifications, a plain IntentService).
+    // Only combining a direct Vibrator call with an active FOREGROUND service Context produced
+    // the correct custom pattern. DexCollectionService (the BLE collector) is used when it's
+    // already running (no extra startup latency), with AlertVibrationService as a guaranteed
+    // fallback for when the collector happens to be stopped, so this stays reliable regardless
+    // of BLE connection state.
+    private static void vibrateDirect(Context ctx, long[] pattern) {
+        final Context foregroundCtx = DexCollectionService.getRunningForegroundContext();
+        if (foregroundCtx != null) {
+            fireVibration(foregroundCtx, pattern);
+            return;
+        }
+        try {
+            final Intent intent = new Intent(ctx, AlertVibrationService.class);
+            intent.putExtra(AlertVibrationService.EXTRA_PATTERN, pattern);
+            ctx.startForegroundService(intent);
+        } catch (Exception e) {
+            UserError.Log.e(TAG, "Failed to start AlertVibrationService, falling back to direct vibrate: " + e);
+            fireVibration(ctx, pattern);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void fireVibration(Context ctx, long[] pattern) {
+        try {
+            final Vibrator vibrator = getVibrator(ctx);
+            if (vibrator == null || !vibrator.hasVibrator()) return;
+            vibrator.vibrate(pattern, -1);
+        } catch (Exception e) {
+            UserError.Log.e(TAG, "vibrateDirect failed: " + e);
+        }
     }
 
     private void Vibrate(Context ctx, AlertType alert, String bgValue, Boolean overrideSilent, int timeFromStartPlaying) {
@@ -506,20 +562,21 @@ public class AlertPlayer {
 
         boolean localOnly = Home.get_forced_wear();//KS
         Log.d(TAG, "NotificationCompat.Builder localOnly=" + localOnly);
-        final String channelId = alert.above ? BG_ALERT_CHANNEL_HIGH : BG_ALERT_CHANNEL_LOW;
+        final String channelId = bgAlertChannelId(alert.above);
         NotificationCompat.Builder  builder = new NotificationCompat.Builder(ctx, channelId)//KS Notification
                 .setSmallIcon(R.drawable.ic_launcher)//KS ic_action_communication_invert_colors_on
                 .setContentTitle(title)
                 .setContentText(content)
                 .setContentIntent(notificationIntent(ctx, intent))
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setLocalOnly(localOnly)//KS
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setLocalOnly(localOnly)//KSwa
                 .setDeleteIntent(snoozeIntent(ctx));
-        builder.setVibrate(alert.above ? Notifications.vibratePattern : Notifications.lowAlertVibratePattern);
         Log.ueh("Alerting",content);
         NotificationManager mNotifyMgr = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         //mNotifyMgr.cancel(Notifications.exportAlertNotificationId); // this appears to confuse android wear version 2.0.0.141773014.gms even though it shouldn't - can we survive without this?
         mNotifyMgr.notify(Notifications.exportAlertNotificationId, builder.build());
+        vibrateDirect(ctx, alert.above ? Notifications.vibratePattern : Notifications.lowAlertVibratePattern);
         if (Pref.getBooleanDefaultFalse("alert_use_sounds")) {
             try {
                 if (JoH.ratelimit("wear-alert-sound", 10)) {
@@ -534,6 +591,8 @@ public class AlertPlayer {
     private void VibrateAudio(Context ctx, AlertType alert, String bgValue, Boolean overrideSilent, int timeFromStartPlaying) {
         Log.d(TAG, "Vibrate called timeFromStartPlaying = " + timeFromStartPlaying);
         Log.d("ALARM", "setting vibrate alarm");
+        ensureNotificationPermission(ctx);
+        ensureBgAlertChannels(ctx);
         int profile = getAlertProfile(ctx);
         if(alert.uuid.equals(AlertType.LOW_ALERT_55)) {
             // boost alerts...
@@ -554,11 +613,13 @@ public class AlertPlayer {
 
         boolean localOnly = Home.get_forced_wear();//KS
         Log.d(TAG, "NotificationCompat.Builder localOnly=" + localOnly);
-        NotificationCompat.Builder  builder = new NotificationCompat.Builder(ctx)//KS Notification
+        final String channelId = bgAlertChannelId(alert.above);
+        NotificationCompat.Builder  builder = new NotificationCompat.Builder(ctx, channelId)//KS Notification
             .setSmallIcon(R.drawable.ic_launcher)//KS ic_action_communication_invert_colors_on
             .setContentTitle(title)
             .setContentText(content)
             .setContentIntent(notificationIntent(ctx, intent))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setLocalOnly(localOnly)//KS
             .setDeleteIntent(snoozeIntent(ctx));
 
