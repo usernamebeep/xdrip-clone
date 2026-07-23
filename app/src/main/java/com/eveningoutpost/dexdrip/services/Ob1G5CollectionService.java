@@ -183,7 +183,7 @@ public class Ob1G5CollectionService extends G5BaseService {
     // range of the transmitter), as opposed to the user having explicitly enabled it themselves -
     // only the former should ever be auto-reverted on reconnect.
     private static final String AUTO_WEAR_HANDOFF_ACTIVE = "auto_wear_handoff_active";
-    private static final int AUTO_WEAR_HANDOFF_FAILURE_THRESHOLD_DEFAULT = 3;
+    private static final int AUTO_WEAR_HANDOFF_STALENESS_MINUTES_DEFAULT = 15;
     private static volatile STATE state = INIT;
     private static volatile STATE last_automata_state = CLOSED;
 
@@ -1014,6 +1014,10 @@ public class Ob1G5CollectionService extends G5BaseService {
     }
 
     private void handleWakeup() {
+        // Evaluated on every wakeup regardless of state, since this is time-based rather than
+        // failure-count based - it needs to keep firing even once always_scan latches below and
+        // the connector stops revisiting CONNECT_NOW altogether.
+        checkAutoWearHandoff();
         if (always_scan) {
             UserError.Log.d(TAG, "Always scan mode");
             changeState(SCAN);
@@ -1534,19 +1538,25 @@ public class Ob1G5CollectionService extends G5BaseService {
 
     }
 
-    // If the phone has failed to connect to the transmitter several times in a row (i.e. it's
-    // likely out of BLE range), and the watch is set up as a capable fallback collector
-    // (enable_wearG5) but not already forced on, automatically hand collection over to the watch.
+    // If the phone hasn't successfully connected to the transmitter in a while (i.e. it's likely
+    // out of BLE range), and the watch is set up as a capable fallback collector (enable_wearG5)
+    // but not already forced on, automatically hand collection over to the watch. Time-based
+    // rather than failure-count based: connectNowFailures used to gate this, but it stops
+    // advancing as soon as always_scan latches (handleWakeup() then never revisits CONNECT_NOW
+    // again), which made the failure-count check permanently unable to fire in exactly the
+    // out-of-range scenario it exists for. static_last_connected keeps meaning "last time we
+    // actually talked to the transmitter" regardless of which state the connector is stuck in.
     // Only triggers if the user hasn't already explicitly forced watch collection themselves -
     // AUTO_WEAR_HANDOFF_ACTIVE remembers that we (not the user) made this change, so it can be
     // safely auto-reverted once the phone reconnects (see checkAutoWearHandback()).
     private void checkAutoWearHandoff() {
         if (!Pref.getBoolean("wear_sync", false) || !Pref.getBoolean("enable_wearG5", false)) return;
         if (Pref.getBoolean("force_wearG5", false)) return; // already forced (by us or the user)
-        final int threshold = Pref.getStringToInt("auto_wear_handoff_failures", AUTO_WEAR_HANDOFF_FAILURE_THRESHOLD_DEFAULT);
-        if (connectNowFailures >= threshold) {
-            UserError.Log.uel(TAG, "Phone appears out of range of transmitter (" + connectNowFailures
-                    + " consecutive connect failures) - handing collection over to watch");
+        if (static_last_connected <= 0) return; // never connected yet - nothing to measure staleness from
+        final int thresholdMinutes = Pref.getStringToInt("auto_wear_handoff_minutes", AUTO_WEAR_HANDOFF_STALENESS_MINUTES_DEFAULT);
+        if (msSince(static_last_connected) >= MINUTE_IN_MS * thresholdMinutes) {
+            UserError.Log.uel(TAG, "Phone appears out of range of transmitter (" + JoH.niceTimeSince(static_last_connected)
+                    + " since last successful connection) - handing collection over to watch");
             Pref.setBoolean(AUTO_WEAR_HANDOFF_ACTIVE, true);
             Pref.setBoolean("force_wearG5", true); // picked up automatically by WatchUpdaterService's pref-change listener
         }
@@ -1594,6 +1604,7 @@ public class Ob1G5CollectionService extends G5BaseService {
 
         if (shouldServiceRun()) {
             static_last_connected = tsl();
+            checkAutoWearHandback(); // phone reached the transmitter directly - undo any auto handoff to the watch
             lastConnectFailed = false;
             preScanFailureMarker = false;
             if (!shortTxId() || !DexSyncKeeper.isReady(transmitterID)) {

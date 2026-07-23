@@ -66,6 +66,10 @@
             android:key="watch_alert_mode"
             android:summary="@string/pref_summary_watch_alert_mode"
             android:title="@string/pref_watch_alert_mode" />
+        <Preference
+            android:key="enable_alert_dismiss_listener"
+            android:summary="@string/pref_summary_enable_alert_dismiss_listener"
+            android:title="@string/pref_enable_alert_dismiss_listener" />
         <CheckBoxPreference
             android:defaultValue="false"
             android:key="persistent_high_alert_enabled"

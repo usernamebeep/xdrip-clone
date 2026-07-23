@@ -99,6 +99,8 @@
         <item>out_of_range</item>
         <item>always</item>
     </string-array>
+    <string name="pref_enable_alert_dismiss_listener">Swipe to Dismiss</string>
+    <string name="pref_summary_enable_alert_dismiss_listener">Let swiping away the alert notification on the watch also dismiss it on the phone. Requires granting xDrip notification access on the next screen.</string>
     <string name="pref_persistent_high_alert_enabled">High Alerts</string>
     <string name="pref_summary_persistent_high_alert_enabled">Enable Persistent High alerts</string>
     <string name="pref_run_ble_scan_constantly">Scan for G5</string>

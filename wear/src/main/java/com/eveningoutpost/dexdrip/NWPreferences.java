@@ -1,16 +1,21 @@
 package com.eveningoutpost.dexdrip;
 
 
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceCategory;
 import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
+import android.provider.Settings;
 import android.util.Log;
 
 import com.eveningoutpost.dexdrip.R;
+import com.eveningoutpost.dexdrip.models.JoH;
 import com.eveningoutpost.dexdrip.utils.DexCollectionType;
 
 public class NWPreferences extends PreferenceActivity {
@@ -44,6 +49,36 @@ public class NWPreferences extends PreferenceActivity {
         bindPreferenceSummaryToValue(collectionMethod);
         listenForChangeInSettings();
         setCollectionPrefs();
+
+        final Preference alertDismissListenerPref = findPreference("enable_alert_dismiss_listener");
+        if (alertDismissListenerPref != null) {
+            alertDismissListenerPref.setOnPreferenceClickListener(preference -> {
+                openNotificationListenerSettings();
+                return true;
+            });
+        }
+    }
+
+    // Not every watch/OEM Settings app ships an activity for these actions (e.g. confirmed
+    // missing on this Samsung Wear build via an ActivityNotFoundException crash), so each step
+    // falls back rather than letting the exception propagate and take down the whole app.
+    private void openNotificationListenerSettings() {
+        try {
+            startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+            return;
+        } catch (ActivityNotFoundException e) {
+            Log.d(TAG, "No notification listener settings screen on this device: " + e);
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", getPackageName(), null)));
+            return;
+        } catch (ActivityNotFoundException e) {
+            Log.d(TAG, "No app details settings screen on this device: " + e);
+        }
+        JoH.static_toast_long(getApplicationContext(), "No notification access screen on this watch. Grant via adb: "
+                + "adb shell cmd notification allow_listener " + getPackageName()
+                + "/com.eveningoutpost.dexdrip.services.WearAlertBridgeDismissListener");
     }
 
     private static void bindPreferenceSummaryToValue(Preference preference) {

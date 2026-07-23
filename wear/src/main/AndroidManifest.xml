@@ -42,6 +42,14 @@
         android:name="android.permission.DEVICE_POWER"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <!-- Unlike the phone app (targetSdk 26, where the legacy location-based BLE permission model
+         still applies), this module targets 34 - Android requires these to be held before any
+         BLE scan/GATT connect will succeed. LocationPermissionActivity already requests both at
+         runtime on API 31+, but a runtime request for a permission absent from the manifest is
+         silently denied, so without this declaration the watch's own G5 collector can never
+         actually talk to the transmitter even after being handed collection duty. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- Declaration that this app is usable on phones with Bluetooth Low Energy. -->
     <uses-feature
         android:name="android.hardware.bluetooth_le"
@@ -238,6 +246,15 @@
         <service
             android:name=".services.SnoozeOnNotificationDismissService"
             android:exported="false" />
+        <service
+            android:name=".services.WearAlertBridgeDismissListener"
+            android:exported="true"
+            android:label="xDrip Alert Dismiss Listener"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <service
             android:name=".services.MissedReadingService"
             android:enabled="true"
