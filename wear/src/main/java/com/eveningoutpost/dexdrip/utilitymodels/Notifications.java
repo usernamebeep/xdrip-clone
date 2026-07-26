@@ -137,6 +137,12 @@ public class Notifications extends IntentService {
             final Context context = getApplicationContext();
 
             bg_notifications = AlertPlayer.watchAlertsEnabled();
+            // Must run regardless of bg_notifications: watchAlertsEnabled() is false by default
+            // (watch_alert_mode="none"), and even "out_of_range" mode requires force_wearG5
+            // already true - circular, since flipping force_wearG5 on is this check's job. Gating
+            // it inside the bg_notifications block below made the whole failover unreachable
+            // unless the user separately opted into "always" BG alerts on the watch.
+            checkPhoneDataStalenessFailover(context);
             if (bg_notifications) {
                 //KS TODO ActivityRecognizedService.reStartActivityRecogniser(context);
 
@@ -226,7 +232,6 @@ public class Notifications extends IntentService {
     private void FileBasedNotifications(Context context) {
         ReadPerfs(context);
         Sensor sensor = Sensor.currentSensor();
-        checkPhoneDataStalenessFailover(context);
 
         final BgReading bgReading = BgReading.last();
         if (bgReading == null) {

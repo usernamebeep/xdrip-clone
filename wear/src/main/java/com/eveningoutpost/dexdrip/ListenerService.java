@@ -447,6 +447,16 @@ public class ListenerService extends WearableListenerService {
                     .addOnSuccessListener(messageId -> Log.d(TAG, "sendMessagePayload Sent request " + node.getDisplayName() + " " + path))
                     .addOnFailureListener(e -> Log.e(TAG, "sendMessagePayload ERROR: failed to send request " + path + " Error=" + e));
 
+            // Same DataItem backstop as pushPrefSettingsDataItem (see pushDataItemBackstop),
+            // applied to the paths where a silently-dropped message is worse than a stale setting:
+            // BG readings (a missed glucose value) and WEARABLE_REPLYMSG_PATH (the watch's reply to
+            // the phone's STATUS_COLLECTOR_PATH request - without this, a dropped reply leaves the
+            // phone's status screen stuck on its compiled-in "Not running" default forever, since
+            // nothing else ever corrects it).
+            if (path.equals(SYNC_BGS_PATH) || path.equals(SYNC_BGS_PRECALCULATED_PATH) || path.equals(WEARABLE_REPLYMSG_PATH)) {
+                pushDataItemBackstop(path, payload);
+            }
+
             //TEST**************************************************************************
             DataMap datamap;
             if (bBenchmarkBgs && path.equals(SYNC_BGS_PATH)) {
@@ -791,6 +801,7 @@ public class ListenerService extends WearableListenerService {
         dataMap.putBoolean("persistent_high_alert_enabled_watch", mPrefs.getBoolean("persistent_high_alert_enabled", false));
         dataMap.putBoolean("show_wear_treatments", show_wear_treatments);
         sendData(WEARABLE_PREF_DATA_PATH, dataMap.toByteArray());
+        pushPrefSettingsDataItem(dataMap);
         pushAlertStateDataItem();
 
         SharedPreferences.Editor prefs = PreferenceManager.getDefaultSharedPreferences(this).edit();
@@ -798,6 +809,46 @@ public class ListenerService extends WearableListenerService {
             Log.d(TAG, "sendPrefSettings save to SharedPreferences - node_wearG5:" + dataMap.getString("node_wearG5", ""));
             prefs.putString("node_wearG5", dataMap.getString("node_wearG5", ""));
             prefs.apply();
+        }
+    }
+
+    // sendData()/DataRequester above delivers this same payload via MessageClient.sendMessage,
+    // but that's a single fire-and-forget hop whose local success callback never confirms actual
+    // remote delivery (confirmed via real-device testing: it reports success every time, yet the
+    // phone's WatchUpdaterService.syncPrefData() never once received it). DataClient.putDataItem
+    // is buffered and synced by the system rather than one-shot, matching how Samsung's own system
+    // apps reliably relay watch state to the phone - the phone's onDataChanged already has a
+    // WEARABLE_PREF_DATA_PATH case ready for this, so this just gives it something to fire on.
+    private void pushPrefSettingsDataItem(DataMap dataMap) {
+        try {
+            final PutDataMapRequest request = PutDataMapRequest.create(WEARABLE_PREF_DATA_PATH);
+            request.getDataMap().putAll(dataMap);
+            final PutDataRequest putRequest = request.asPutDataRequest().setUrgent();
+            Wearable.getDataClient(this).putDataItem(putRequest);
+        } catch (Exception e) {
+            Log.e(TAG, "pushPrefSettingsDataItem failed: " + e);
+        }
+    }
+
+    // Same rationale as pushPrefSettingsDataItem above, applied to whichever paths call it (BG
+    // readings and the STATUS_COLLECTOR_PATH reply - see the call site in sendMessagePayload):
+    // sendMessagePayload()'s MessageClient.sendMessage() has no retry or persistence (Google's own
+    // docs: "best effort... doesn't contain any built-in retry mechanism" - if the phone is
+    // unreachable for even a moment, e.g. while the watch's own BLE radio is busy scanning for the
+    // transmitter, the send is just gone). Storing it as a DataItem too means Play Services queues
+    // and syncs it once the devices reconnect instead of discarding it outright. Raw bytes rather
+    // than a parsed DataMap so this works unmodified regardless of path - the phone-side reader
+    // decides how to interpret it per path, same as onMessageReceived already does.
+    private void pushDataItemBackstop(String path, byte[] payload) {
+        if (payload == null) return;
+        try {
+            final PutDataMapRequest request = PutDataMapRequest.create(path);
+            request.getDataMap().putByteArray("payload", payload);
+            request.getDataMap().putLong("time", new Date().getTime());
+            final PutDataRequest putRequest = request.asPutDataRequest().setUrgent();
+            Wearable.getDataClient(this).putDataItem(putRequest);
+        } catch (Exception e) {
+            Log.e(TAG, "pushDataItemBackstop failed: " + e);
         }
     }
 
@@ -927,6 +978,13 @@ public class ListenerService extends WearableListenerService {
         // query a stale/absent value right after this process (re)starts, before any of those
         // trigger points have fired again in this process's lifetime.
         pushAlertStateDataItem();
+        // Same gap for the collector itself: processConnect() otherwise only runs from
+        // onSharedPreferenceChanged (an actual pref value flip) or a phone message - never just
+        // because this process (re)started. If enable_wearG5/force_wearG5 were already set to
+        // "should be collecting" before this process launched (app update, process death, watch
+        // reboot without BOOT_COMPLETED reaching us in time), nothing would ever apply that state
+        // and the watch would silently sit there not collecting despite the prefs looking correct.
+        processConnect();
         super.onCreate();
     }
 

@@ -59,6 +59,7 @@ import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
+import com.google.android.gms.wearable.MessageClient;
 import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.Wearable;
@@ -691,6 +692,18 @@ public class WatchUpdaterService extends WearableListenerService {
         }
     }
 
+    // Confirmed via real-device testing (2026-07-24): Play Services never invokes this service's
+    // manifest-triggered onMessageReceived()/onDataChanged() for messages sent from the watch,
+    // despite its own transport log showing the bytes genuinely arriving at this phone at the
+    // network layer - tried both BIND_LISTENER and fine-grained per-action manifest filters,
+    // targetSdkVersion 26/30/34, a fresh Play Services restart, all with the exact same failure.
+    // Meanwhile a runtime MessageClient.addListener() registered from this same running service
+    // process received every one of those same messages without issue. So the manifest/service
+    // dispatch path itself is broken on this device/GMS version; registering this way instead
+    // reuses the same onMessageReceived() handling logic but bypasses whatever's broken about the
+    // automatic dispatch, while the service still gets created/kept alive the same way as before.
+    private final MessageClient.OnMessageReceivedListener runtimeMessageListener = this::onMessageReceived;
+
     @Override
     public void onCreate() {
         mPrefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -699,6 +712,7 @@ public class WatchUpdaterService extends WearableListenerService {
         is_using_bt = DexCollectionType.hasBluetooth();
         setSettings();
         listenForChangeInSettings();
+        Wearable.getMessageClient(this).addListener(runtimeMessageListener);
     }
 
     private void listenForChangeInSettings() {
@@ -1115,6 +1129,56 @@ public class WatchUpdaterService extends WearableListenerService {
                             syncPrefData(dataMap);
                         }
                         break;
+                    // Backstop for the watch's pushDataItemBackstop(): if onMessageReceived's
+                    // MessageClient delivery of the same reading was dropped (no retry on that
+                    // path - see the watch-side comment), this DataItem still gets synced once
+                    // both devices reconnect. Payload is raw (never compressed on the watch side
+                    // for this path), unlike the equivalent onMessageReceived case below.
+                    case SYNC_BGS_PATH: {
+                        dataMap = DataMapItem.fromDataItem(event.getDataItem()).getDataMap();
+                        final byte[] payload = dataMap != null ? dataMap.getByteArray("payload") : null;
+                        final DataMap bgDataMap = payload != null ? DataMap.fromByteArray(payload) : null;
+                        if (bgDataMap != null) {
+                            Log.d(TAG, "onDataChanged SYNC_BGS_PATH dataMap=" + bgDataMap);
+                            syncTransmitterData(bgDataMap, false);
+                        }
+                        break;
+                    }
+                    // Same backstop for the precalculated path - payload is raw here too (the
+                    // gzip compression on the equivalent onMessageReceived case is specific to
+                    // that MessageClient hop, not something pushDataItemBackstop applies).
+                    case SYNC_BGS_PRECALCULATED_PATH: {
+                        dataMap = DataMapItem.fromDataItem(event.getDataItem()).getDataMap();
+                        final byte[] payload = dataMap != null ? dataMap.getByteArray("payload") : null;
+                        final DataMap bgDataMap = payload != null ? DataMap.fromByteArray(payload) : null;
+                        if (bgDataMap != null) {
+                            new LowPriorityThread(() -> {
+                                syncBgReadingsData(bgDataMap);
+                                Home.staticRefreshBGCharts();
+                            }, "inbound-precalculated-bg-dataitem").start();
+                        }
+                        break;
+                    }
+                    // Backstop for the watch's STATUS_COLLECTOR_PATH reply (sent via
+                    // sendCollectorStatus() -> WEARABLE_REPLYMSG_PATH): the equivalent
+                    // onMessageReceived case below is the only thing that currently updates the
+                    // "Watch Service State" status screen - if that message is dropped, the UI is
+                    // stuck on its compiled-in "Not running" default forever, since nothing else
+                    // ever corrects it. Mirrors the same action_path branch, minus the
+                    // START_COLLECTOR_PATH toast (a toast arriving late via a DataItem resync,
+                    // possibly well after the user acted, would be confusing rather than helpful).
+                    case WEARABLE_REPLYMSG_PATH: {
+                        dataMap = DataMapItem.fromDataItem(event.getDataItem()).getDataMap();
+                        final byte[] payload = dataMap != null ? dataMap.getByteArray("payload") : null;
+                        final DataMap replyDataMap = payload != null ? DataMap.fromByteArray(payload) : null;
+                        if (replyDataMap != null && STATUS_COLLECTOR_PATH.equals(replyDataMap.getString("action_path", ""))) {
+                            Log.d(TAG, "onDataChanged WEARABLE_REPLYMSG_PATH STATUS_COLLECTOR_PATH dataMap=" + replyDataMap);
+                            final Intent intent = new Intent(ACTION_BLUETOOTH_COLLECTION_SERVICE_UPDATE);
+                            intent.putExtra("data", replyDataMap.toBundle());
+                            LocalBroadcastManager.getInstance(xdrip.getAppContext()).sendBroadcast(intent);
+                        }
+                        break;
+                    }
                     default:
                         Log.d(TAG, "Unknown wearable path: " + path);
                         break;
@@ -2136,6 +2200,7 @@ public class WatchUpdaterService extends WearableListenerService {
         if (mPrefs != null && mPreferencesListener != null) {
             mPrefs.unregisterOnSharedPreferenceChangeListener(mPreferencesListener);
         }
+        Wearable.getMessageClient(this).removeListener(runtimeMessageListener);
     }
 
     public static boolean isEnabled() {

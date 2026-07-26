@@ -3,6 +3,7 @@ package com.eveningoutpost.dexdrip;
 import android.annotation.SuppressLint;
 import android.app.Application;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Build;
 import android.preference.PreferenceManager;
 import androidx.annotation.StringRes;
@@ -53,6 +54,16 @@ public class xdrip extends Application {
         executor = new PlusAsyncExecutor();
         VersionTracker.updateDevice();
         disableUpdates();
+
+        // ListenerService only gets instantiated reactively by Play Services when an incoming
+        // Data Layer event arrives - nothing previously started it explicitly, so its
+        // SharedPreferences change listener (which pushes enable_wearG5/force_wearG5/node_wearG5
+        // changes made locally on the watch back to the phone) was only registered by chance,
+        // whenever some unrelated incoming message happened to wake it first. Starting it here
+        // guarantees that listener is registered every time the watch app process is alive, so
+        // toggling these settings on the watch reliably syncs to the phone instead of silently
+        // going unnoticed.
+        startService(new Intent(this, ListenerService.class));
 
     }
 

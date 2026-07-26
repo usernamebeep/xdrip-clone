@@ -174,22 +174,19 @@ public class CollectionServiceStarter {
             startBtShareService();
 
         } else if (isBTG5(collection_method)) {
-            Log.d("DexDrip", "Starting G5 share collector");
+            Log.d("DexDrip", "Starting G5 collector");
             stopBtWixelService();
             //KS stopWifWixelThread();
             stopBtShareService();
 
-            if (prefs.getBoolean("wear_sync", false)) {//KS
-                boolean enable_wearG5 = prefs.getBoolean("enable_wearG5", false);
-                boolean force_wearG5 = prefs.getBoolean("force_wearG5", false);
-                //KS this.mContext.startService(new Intent(context, WatchUpdaterService.class));
-                if (!enable_wearG5 || (enable_wearG5 && !force_wearG5)) { //don't start if Wear G5 Collector Service is active
-                    startBtG5Service();
-                }
-            }
-            else {
-                startBtG5Service();
-            }
+            // This runs on the watch itself, so unlike the phone's copy of this same guard,
+            // force_wearG5=true here means WE are the forced collector and must start - not the
+            // opposite. The old inverted condition (copy-pasted from the phone's CollectionServiceStarter,
+            // where skipping when force_wearG5=true is correct because the watch has it instead)
+            // skipped starting in exactly the one case that most needed it: enable_wearG5=true,
+            // force_wearG5=true. That silently blocked every automatic recovery path (missed-reading
+            // watchdog, app cold-start) from ever bringing the collector back once killed while forced.
+            startBtG5Service();
 
         } else if (isWifiandBTWixel(context) || isWifiandDexBridge()) {
             Log.d("DexDrip", "Starting wifi and bt wixel collector");

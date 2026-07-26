@@ -248,6 +248,23 @@
         <service
             android:name=".wearintegration.WatchUpdaterService"
             android:exported="true">
+            <!--
+            Re-tested 2026-07-24 on real hardware: BIND_LISTENER (the previous fix here, based on
+            an earlier claim that fine-grained filters didn't work) instead results in Play
+            Services binding this service with a NULL binder - confirmed via
+            `dumpsys activity services com.eveningoutpost.dexdrip`, which showed
+            `hasBound=true` but `binder=null` for the BIND_LISTENER IntentBindRecord - and
+            onMessageReceived/onDataChanged never fire. Play Services' own internal transport log
+            (`dumpsys activity service com.google.android.gms`, WearableService's message trace)
+            confirms the watch's messages (e.g. /xdrip_plus_syncwearbgs) genuinely arrive at the
+            phone at the network layer at the same moment they're sent - so the gap is entirely in
+            Play Services' local dispatch to this service, not connectivity, capability
+            resolution, or path matching. Fine-grained per-action filters are also what Android's
+            current Data Layer docs document as the correct mechanism
+            (https://developer.android.com/training/wearables/data/events). Do not switch back to
+            BIND_LISTENER without new real-device evidence, since that's what caused this exact
+            failure.
+            -->
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.CAPABILITY_CHANGED" />
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />

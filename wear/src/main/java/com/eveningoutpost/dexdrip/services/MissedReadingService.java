@@ -67,7 +67,14 @@ public class MissedReadingService extends IntentService {
             }
         }*/
 
-        if ((prefs.getBoolean("aggressive_service_restart", false) || DexCollectionType.isFlakey())) {//!Home.get_enable_wear() &&
+        // Mirrors the same fix on the phone's MissedReadingService: skip this watchdog when
+        // enable_wearG5=true and force_wearG5=false, i.e. the phone has been left as the
+        // intentional exclusive collector - without this, the watch would aggressively restart
+        // its own collector whenever it notices stale data, fighting the phone for the
+        // transmitter's single BLE connection slot instead of staying out of the way.
+        final boolean phoneIsExclusiveCollector = Pref.getBooleanDefaultFalse("enable_wearG5")
+                && !Pref.getBooleanDefaultFalse("force_wearG5");
+        if (!phoneIsExclusiveCollector && (prefs.getBoolean("aggressive_service_restart", false) || DexCollectionType.isFlakey())) {
             if (!BgReading.last_within_millis(stale_millis) && Sensor.isActive() && (!getLocalServiceCollectingState())) {
                 if (JoH.ratelimit("aggressive-restart", aggressive_backoff_timer)) {
                     Log.e(TAG, "Aggressively restarting collector service due to lack of reception: backoff: "+aggressive_backoff_timer);

@@ -44,6 +44,7 @@ import com.eveningoutpost.dexdrip.utilitymodels.Constants;
 import com.eveningoutpost.dexdrip.utilitymodels.Inevitable;
 import com.eveningoutpost.dexdrip.utilitymodels.PersistentStore;
 import com.eveningoutpost.dexdrip.utilitymodels.Pref;
+import com.eveningoutpost.dexdrip.utils.DexCollectionType;
 import com.eveningoutpost.dexdrip.xdrip;
 
 import static com.eveningoutpost.dexdrip.utilitymodels.BgGraphBuilder.unitizedDeltaString;
@@ -59,6 +60,7 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
     private static final long FRESH_MS = Constants.MINUTE_IN_MS * 5;
     private static final float RANGED_LOW_MGDL = 70f;
     private static final float RANGED_HIGH_MGDL = 240f;
+    private static final String WATCH_COLLECTOR_MARKER = "⌚"; // watch emoji - collection is running on the watch, not the phone
 
     enum COMPLICATION_STATE {
         DELTA(0),
@@ -140,7 +142,7 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
         ComplicationData complicationData = null;
 
         if (dataType == ComplicationType.SHORT_TEXT) {
-            final String titleText;
+            String titleText;
             UserError.Log.d(TAG, "SHORT_TEXT Current complication state:" + state);
             switch (state) {
                 case DELTA:
@@ -151,6 +153,9 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
                     break;
                 default:
                     titleText = "ERR!";
+            }
+            if (isWatchCollector()) {
+                titleText = titleText + " " + WATCH_COLLECTOR_MARKER;
             }
             complicationData = new ShortTextComplicationData.Builder(
                     plain(numberText), plain(numberText))
@@ -228,6 +233,18 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
     private static String getDeltaText(BgReading bgReading, boolean is_stale) {
         final boolean doMgdl = Pref.getString("units", "mgdl").equals("mgdl");
         return (!is_stale ? (bgReading != null ? unitizedDeltaString(false, false, Home.get_follower(), doMgdl) : "null") : "");
+    }
+
+    // Mirrors BaseWatchFace's isCollectorRunning check: true either because the watch has been
+    // explicitly forced on as collector, or because its BLE collector service is actually running
+    // right now (covers Notifications.checkPhoneDataStalenessFailover's local auto-start, which
+    // never touches force_wearG5).
+    private static boolean isWatchCollector() {
+        final boolean enable_wearG5 = Pref.getBoolean("enable_wearG5", false);
+        if (!enable_wearG5) return false;
+        if (Pref.getBoolean("force_wearG5", false)) return true;
+        final Class<?> serviceClass = DexCollectionType.getCollectorServiceClass();
+        return serviceClass != null && JoH.isServiceRunningInForeground(serviceClass);
     }
 
     public static void refresh() {
