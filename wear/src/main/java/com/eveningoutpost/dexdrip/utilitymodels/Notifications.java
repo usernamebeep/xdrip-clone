@@ -30,6 +30,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
 import com.eveningoutpost.dexdrip.Home;
+import com.eveningoutpost.dexdrip.NWPreferences;
 import com.eveningoutpost.dexdrip.models.ActiveBgAlert;
 import com.eveningoutpost.dexdrip.models.AlertType;
 import com.eveningoutpost.dexdrip.models.BgReading;
@@ -60,7 +61,7 @@ import java.util.List;
  */
 public class Notifications extends IntentService {
     public static final long[] vibratePattern = {0, 1000, 300, 1000, 300, 1000};
-    public static final long[] lowAlertVibratePattern = {0, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50};
+    public static final long[] lowAlertVibratePattern = {0, 80, 100, 80, 100, 80, 100, 80, 100, 80, 100, 80, 100, 80, 100, 80, 100, 80, 100, 80, 100, 80, 100, 80};
     public static boolean bg_notifications;
     public static boolean bg_persistent_high_alert_enabled;
     public static boolean bg_vibrate;
@@ -630,7 +631,10 @@ public class Notifications extends IntentService {
                 .setSmallIcon(R.drawable.ic_action_communication_invert_colors_on)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)
-                .setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, Home.class),
+                // Home is the watch face's WallpaperService (see AndroidManifest.xml), not a
+                // launchable Activity - PendingIntent.getActivity() against it silently does
+                // nothing when tapped. NWPreferences is the actual MAIN/LAUNCHER activity.
+                .setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, NWPreferences.class),
                         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
                 .build();
     }
@@ -889,7 +893,9 @@ public class Notifications extends IntentService {
                 localOnly = (Home.get_forced_wear() && bg_notifications && bg_persistent_high_alert_enabled);
             }
             Log.d(TAG,"OtherAlert forced_wear localOnly=" + localOnly);
-            Intent intent = new Intent(context, Home.class);
+            // Home is the watch face's WallpaperService, not a launchable Activity - see the
+            // same fix/comment in createOngoingNotification() above.
+            Intent intent = new Intent(context, NWPreferences.class);
             NotificationCompat.Builder mBuilder =
                     new NotificationCompat.Builder(context)
                             .setSmallIcon(R.drawable.ic_launcher)//KS ic_action_communication_invert_colors_on

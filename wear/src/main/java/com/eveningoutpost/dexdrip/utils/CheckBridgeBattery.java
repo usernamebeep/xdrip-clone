@@ -6,7 +6,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.BatteryManager;
 
-import com.eveningoutpost.dexdrip.Home;
+import com.eveningoutpost.dexdrip.NWPreferences;
 import com.eveningoutpost.dexdrip.models.JoH;
 import com.eveningoutpost.dexdrip.models.UserError;
 import com.eveningoutpost.dexdrip.utilitymodels.Pref;
@@ -44,7 +44,9 @@ public class CheckBridgeBattery {
             if ((this_level < threshold) && (this_level < last_level)) {
                 if (JoH.pratelimit("bridge-battery-warning", repeat_seconds)) {
                     notification_showing = true;
-                    final PendingIntent pendingIntent = android.app.PendingIntent.getActivity(xdrip.getAppContext(), 0, new Intent(xdrip.getAppContext(), Home.class), android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+                    // Home is the watch face's WallpaperService, not a launchable Activity -
+                    // PendingIntent.getActivity() against it silently does nothing when tapped.
+                    final PendingIntent pendingIntent = android.app.PendingIntent.getActivity(xdrip.getAppContext(), 0, new Intent(xdrip.getAppContext(), NWPreferences.class), android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
                     showNotification("Low bridge battery", "Bridge battery dropped to: " + this_level + "%", pendingIntent, NOTIFICATION_ITEM, true, true, false);
                 }
             } else {

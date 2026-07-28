@@ -49,6 +49,7 @@ import android.widget.Toast;
 
 import com.activeandroid.ActiveAndroid;
 import com.eveningoutpost.dexdrip.Home;
+import com.eveningoutpost.dexdrip.NWPreferences;
 import com.eveningoutpost.dexdrip.R;
 import com.eveningoutpost.dexdrip.utilitymodels.Constants;
 import com.eveningoutpost.dexdrip.utilitymodels.PersistentStore;
@@ -1231,7 +1232,9 @@ public class JoH {
     }
 
     public static void scheduleNotification(Context context, String title, String body, int delaySeconds, int notification_id) {
-        final Intent notificationIntent = new Intent(context, Home.class).putExtra(Home.SHOW_NOTIFICATION, title).putExtra("notification_body", body).putExtra("notification_id", notification_id);
+        // Home is the watch face's WallpaperService, not a launchable Activity -
+        // PendingIntent.getActivity() against it silently does nothing when tapped.
+        final Intent notificationIntent = new Intent(context, NWPreferences.class).putExtra(Home.SHOW_NOTIFICATION, title).putExtra("notification_body", body).putExtra("notification_id", notification_id);
         final PendingIntent pendingIntent = PendingIntent.getActivity(context, notification_id, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Log.d(TAG, "Scheduling notification: " + title + " / " + body);
         wakeUpIntent(context, delaySeconds * 1000, pendingIntent);
