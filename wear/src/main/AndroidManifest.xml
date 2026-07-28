@@ -47,8 +47,16 @@
          BLE scan/GATT connect will succeed. LocationPermissionActivity already requests both at
          runtime on API 31+, but a runtime request for a permission absent from the manifest is
          silently denied, so without this declaration the watch's own G5 collector can never
-         actually talk to the transmitter even after being handed collection duty. -->
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+         actually talk to the transmitter even after being handed collection duty.
+         usesPermissionFlags="neverForLocation" on BLUETOOTH_SCAN: since Android 12, BLE scan
+         results are silently withheld system-wide whenever the device's Location toggle is off,
+         regardless of app permissions - confirmed on-device via "BluetoothUtils: Permission
+         denial: Location is off." right as Ob1G5CollectionService's scan started, with zero
+         results ever returned and the transmitter's MAC never learned. This flag tells the OS the
+         app never derives location from scan results (true here - only used to find the paired
+         transmitter's advertisement), so it stops gating scans on the Location toggle. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- Declaration that this app is usable on phones with Bluetooth Low Energy. -->
     <uses-feature

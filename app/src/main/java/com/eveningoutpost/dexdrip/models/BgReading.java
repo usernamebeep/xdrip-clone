@@ -234,6 +234,17 @@ public class BgReading extends Model implements ShareUploadableBg {
         return slopeName();
     }
 
+    // Single source of truth for the delta text - mirrors the wear module's BgReading.displayDelta()
+    // so both sides derive delta from the same dg_mgdl/dg_slope BestGlucose snapshot instead of
+    // recomputing independently and potentially disagreeing.
+    public String displayDelta(boolean showUnit, boolean highGranularity) {
+        final boolean doMgdl = Pref.getString("units", "mgdl").equals("mgdl");
+        if (dg_mgdl > 0) {
+            return BgGraphBuilder.unitizedDeltaStringRaw(showUnit, highGranularity, getDg_slope() * 5 * 60 * 1000, doMgdl);
+        }
+        return BgGraphBuilder.unitizedDeltaString(showUnit, highGranularity, Home.get_follower(), doMgdl);
+    }
+
     public double calculated_value_mmol() {
         return mmolConvert(calculated_value);
     }
@@ -282,7 +293,11 @@ public class BgReading extends Model implements ShareUploadableBg {
     public static double activeSlope() {
         BgReading bgReading = BgReading.lastNoSenssor();
         if (bgReading != null) {
-            double slope = (2 * bgReading.a * (new Date().getTime() + BESTOFFSET)) + bgReading.b;
+            // find_new_curve() fits a/b/c relative to bgReading's own timestamp rather than raw
+            // epoch milliseconds (see its comment for why) - evaluating the derivative here must
+            // use that same reference point.
+            double x = (new Date().getTime() + BESTOFFSET) - bgReading.timestamp;
+            double slope = (2 * bgReading.a * x) + bgReading.b;
             Log.i(TAG, "ESTIMATE SLOPE" + slope);
             return slope;
         }
@@ -296,7 +311,8 @@ public class BgReading extends Model implements ShareUploadableBg {
             if (currentTime >= bgReading.timestamp + (60000 * 7)) {
                 currentTime = bgReading.timestamp + (60000 * 7);
             }
-            double time = currentTime + BESTOFFSET;
+            // relative to bgReading.timestamp - see find_new_curve()'s comment and activeSlope()
+            double time = (currentTime + BESTOFFSET) - bgReading.timestamp;
             return ((bgReading.a * time * time) + (bgReading.b * time) + bgReading.c);
         }
         return 0;
@@ -1072,12 +1088,13 @@ public class BgReading extends Model implements ShareUploadableBg {
     }
 
     public static double estimated_bg(double timestamp) {
-        timestamp = timestamp + BESTOFFSET;
         BgReading latest = BgReading.last();
         if (latest == null) {
             return 0;
         } else {
-            return (latest.a * timestamp * timestamp) + (latest.b * timestamp) + latest.c;
+            // relative to latest.timestamp - see find_new_curve()'s comment and activeSlope()
+            final double x = (timestamp + BESTOFFSET) - latest.timestamp;
+            return (latest.a * x * x) + (latest.b * x) + latest.c;
         }
     }
 
@@ -1380,9 +1397,15 @@ public class BgReading extends Model implements ShareUploadableBg {
         final boolean recent = bgr.isCurrent();
         if (recent) {
             Notifications.start(); // may not be needed as this is duplicated in handleNewBgReading
-            // probably not wanted for G5 internal values?
             //bgr.injectNoise(true); // Add noise parameter for nightscout
-            //bgr.injectDisplayGlucose(BestGlucose.getDisplayGlucose()); // Add display glucose for nightscout
+            // Populates dg_mgdl/dg_slope/dg_delta_name from BestGlucose - the same figure this
+            // phone's own Home screen shows (BestGlucose.getDisplayGlucose(), used unconditionally
+            // there regardless of collector type). Without this, G5/G6/G7 readings sync to the
+            // watch with dg_mgdl=0, so the watch's getDg_mgdl()/getDg_slope()/getDg_deltaName()
+            // (already wired into displayValue()/displaySlopeArrow()/displayDelta()) always fall
+            // through to their own independent local computation instead of the phone's value -
+            // which is what caused tonight's arrow/delta/value mismatches between phone and watch.
+            bgr.injectDisplayGlucose(BestGlucose.getDisplayGlucose());
         }
         BgSendQueue.handleNewBgReading(bgr, "create", xdrip.getAppContext(), Home.get_follower(), !recent); // pebble and widget and follower
     }
@@ -1754,12 +1777,24 @@ public class BgReading extends Model implements ShareUploadableBg {
             BgReading second_latest = last_3.get(1);
             BgReading third_latest = last_3.get(2);
 
+            // Fit relative to this reading's own timestamp instead of raw epoch milliseconds
+            // (~10^12). The Lagrange terms below multiply/divide values that scale with x's
+            // absolute magnitude (e.g. y*(x2+x3)), so fitting directly against epoch time produces
+            // huge, nearly-cancelling a/b/c (observed: -5.6e-11x^2 + 199x + -1.8e14 for what should
+            // have been a few mg/dL/min trend) - activeSlope() evaluating that at "now" (also
+            // ~10^12) then loses essentially all real precision to the cancellation, yielding an
+            // arbitrary residual instead of the actual slope. Shifting x to be relative to this
+            // reading's timestamp keeps every term within a numerically sane range. Consumers
+            // (activeSlope(), activePrediction(), estimated_bg()) must evaluate using the same
+            // reference (this reading's timestamp) for the result to mean the same thing - shifting
+            // the input to a polynomial by a constant doesn't change its derivative's value at the
+            // corresponding point, only how reliably it's computed.
             double y3 = latest.calculated_value;
-            double x3 = latest.timestamp;
+            double x3 = latest.timestamp - this.timestamp;
             double y2 = second_latest.calculated_value;
-            double x2 = second_latest.timestamp;
+            double x2 = second_latest.timestamp - this.timestamp;
             double y1 = third_latest.calculated_value;
-            double x1 = third_latest.timestamp;
+            double x1 = third_latest.timestamp - this.timestamp;
 
             a = y1/((x1-x2)*(x1-x3))+y2/((x2-x1)*(x2-x3))+y3/((x3-x1)*(x3-x2));
             b = (-y1*(x2+x3)/((x1-x2)*(x1-x3))-y2*(x1+x3)/((x2-x1)*(x2-x3))-y3*(x1+x2)/((x3-x1)*(x3-x2)));
@@ -1774,10 +1809,11 @@ public class BgReading extends Model implements ShareUploadableBg {
                 BgReading latest = last_3.get(0);
                 BgReading second_latest = last_3.get(1);
 
+                // relative to this reading's own timestamp - see the 3-point branch above
                 double y2 = latest.calculated_value;
-                double x2 = latest.timestamp;
+                double x2 = latest.timestamp - this.timestamp;
                 double y1 = second_latest.calculated_value;
-                double x1 = second_latest.timestamp;
+                double x1 = second_latest.timestamp - this.timestamp;
 
                 if(y1 == y2) {
                     b = 0;

@@ -364,14 +364,19 @@ public class BgSendQueue extends Model {
 
         //int battery = BgSendQueue.getBatteryLevel(context.getApplicationContext());
 
-        dataMap.putString("sgvString", bgGraphBuilder.unitized_string(bg.calculated_value));
-        dataMap.putString("slopeArrow", bg.slopeArrow());
+        // displayValue()/displaySlopeArrow()/displayDelta() are the same single source of truth
+        // the complication and ongoing notification use (BgReading.java) - this is the feed for
+        // every watch face (BaseWatchFace/BIGChart/CircleWatchface/LargeHome) when the watch
+        // itself is the active collector, so it must agree with what those other surfaces show
+        // instead of recomputing a raw two-point diff independently.
+        dataMap.putString("sgvString", bg.displayValue(context));
+        dataMap.putString("slopeArrow", bg.displaySlopeArrow());
         dataMap.putDouble("timestamp", bg.timestamp); //TODO: change that to long (was like that in NW)
-        dataMap.putString("delta", bgGraphBuilder.unitizedDeltaString(true, true));
+        dataMap.putString("delta", bg.displayDelta(true, true));
         dataMap.putString("battery", "" + battery);
-        dataMap.putLong("sgvLevel", sgvLevel(bg.calculated_value, sPrefs, bgGraphBuilder));
+        dataMap.putLong("sgvLevel", sgvLevel(bg.getDg_mgdl(), sPrefs, bgGraphBuilder));
         dataMap.putInt("batteryLevel", (battery>=30)?1:0);
-        dataMap.putDouble("sgvDouble", bg.calculated_value);
+        dataMap.putDouble("sgvDouble", bg.getDg_mgdl());
         dataMap.putDouble("high", inMgdl(highMark, sPrefs));
         dataMap.putDouble("low", inMgdl(lowMark, sPrefs));
         dataMap.putInt("bridge_battery", sPrefs.getInt("bridge_battery", -1));//Used in DexCollectionService

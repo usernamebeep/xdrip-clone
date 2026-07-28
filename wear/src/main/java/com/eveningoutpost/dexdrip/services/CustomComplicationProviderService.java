@@ -25,18 +25,20 @@ import android.os.RemoteException;
 import android.util.Log;
 
 import androidx.wear.watchface.complications.data.ComplicationData;
+import androidx.wear.watchface.complications.data.ComplicationText;
 import androidx.wear.watchface.complications.data.ComplicationType;
+import androidx.wear.watchface.complications.data.CountUpTimeReference;
 import androidx.wear.watchface.complications.data.LongTextComplicationData;
 import androidx.wear.watchface.complications.data.PlainComplicationText;
 import androidx.wear.watchface.complications.data.RangedValueComplicationData;
 import androidx.wear.watchface.complications.data.ShortTextComplicationData;
+import androidx.wear.watchface.complications.data.TimeDifferenceComplicationText;
+import androidx.wear.watchface.complications.data.TimeDifferenceStyle;
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceService;
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester;
 import androidx.wear.watchface.complications.datasource.ComplicationRequest;
 
 import com.activeandroid.ActiveAndroid;
-import com.eveningoutpost.dexdrip.BestGlucose;
-import com.eveningoutpost.dexdrip.Home;
 import com.eveningoutpost.dexdrip.models.BgReading;
 import com.eveningoutpost.dexdrip.models.JoH;
 import com.eveningoutpost.dexdrip.models.UserError;
@@ -47,7 +49,7 @@ import com.eveningoutpost.dexdrip.utilitymodels.Pref;
 import com.eveningoutpost.dexdrip.utils.DexCollectionType;
 import com.eveningoutpost.dexdrip.xdrip;
 
-import static com.eveningoutpost.dexdrip.utilitymodels.BgGraphBuilder.unitizedDeltaString;
+import java.time.Instant;
 
 /**
  * Watch face complication data source: supplies the current glucose value (and, on tap, toggles
@@ -121,18 +123,29 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
         if (bgReading == null) {
             numberText = "null";
         } else if (JoH.msSince(bgReading.timestamp) < STALE_MS) {
-            // Home.java's own display uses BestGlucose.getDisplayGlucose().delta_arrow rather than
-            // bgReading.displaySlopeArrow() - the latter is derived from calculated_value_slope,
-            // a simpler per-reading slope that can disagree with the windowed/regression slope
-            // BestGlucose computes, causing the complication's arrow to mismatch the phone's.
-            final BestGlucose.DisplayGlucose dg = BestGlucose.getDisplayGlucose();
-            final String slopeArrow = (dg != null && dg.delta_arrow != null && dg.delta_arrow.length() > 0)
-                    ? dg.delta_arrow : bgReading.displaySlopeArrow();
-            numberText = bgReading.displayValue(this) + " " + slopeArrow;
+            // displayValue()/displaySlopeArrow() prefer the synced dg_mgdl/dg_slope (the phone's
+            // own BestGlucose.getDisplayGlucose() figures, see WatchUpdaterService#dataMap and
+            // ListenerService#saveSingleIncomingBg) over the raw per-reading calculated_value -
+            // the same fields the ongoing notification and getDeltaText() below read from, so all
+            // wear surfaces and the phone's main screen show the identical number/arrow.
+            // (activeSlopeArrow() was tried here instead but reverted - see find_new_curve()'s
+            // fix for why its parabolic fit was numerically unstable.)
+            numberText = bgReading.displayValue(this) + " " + bgReading.displaySlopeArrow();
         } else {
-            numberText = "old " + niceTimeSinceBgReading(bgReading);
+            numberText = "old";
             is_stale = true;
         }
+
+        // A plain string "time since" is baked in at whatever moment we happen to be asked for
+        // data (a new reading, or the system's own periodic poke) - it then sits frozen on the
+        // watch face, so it can read "1m" when four minutes have actually gone by. A
+        // TimeDifferenceComplicationText instead carries the reference timestamp itself, and the
+        // watch face render system recomputes/redraws the elapsed time locally (about once a
+        // minute) without ever calling back into this service - so it stays accurate with zero
+        // extra battery cost, independent of how often refresh() actually runs.
+        final ComplicationText numberComplicationText = is_stale
+                ? liveAgo(bgReading, "old ^1")
+                : plain(numberText);
 
         Log.d(TAG, "Returning complication text: " + numberText);
 
@@ -142,37 +155,53 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
         ComplicationData complicationData = null;
 
         if (dataType == ComplicationType.SHORT_TEXT) {
-            String titleText;
             UserError.Log.d(TAG, "SHORT_TEXT Current complication state:" + state);
+            final ComplicationText titleComplicationText;
             switch (state) {
-                case DELTA:
-                    titleText = getDeltaText(bgReading, is_stale);
+                case DELTA: {
+                    String titleText = getDeltaText(bgReading, is_stale);
+                    if (isWatchCollector()) {
+                        titleText = titleText + " " + WATCH_COLLECTOR_MARKER;
+                    }
+                    titleComplicationText = plain(titleText);
                     break;
+                }
                 case AGO:
-                    titleText = niceTimeSinceBgReading(bgReading);
+                    // Live-updating, same reasoning as numberComplicationText above - this is the
+                    // exact "1m" vs "actually 4m" symptom, since AGO's whole purpose is displaying
+                    // elapsed time.
+                    titleComplicationText = bgReading != null
+                            ? liveAgo(bgReading, isWatchCollector() ? "^1 " + WATCH_COLLECTOR_MARKER : "^1")
+                            : plain("");
                     break;
                 default:
-                    titleText = "ERR!";
-            }
-            if (isWatchCollector()) {
-                titleText = titleText + " " + WATCH_COLLECTOR_MARKER;
+                    titleComplicationText = plain("ERR!");
             }
             complicationData = new ShortTextComplicationData.Builder(
-                    plain(numberText), plain(numberText))
-                    .setTitle(plain(titleText))
+                    numberComplicationText, numberComplicationText)
+                    .setTitle(titleComplicationText)
                     .setTapAction(complicationPendingIntent)
                     .build();
         } else if (dataType == ComplicationType.LONG_TEXT) {
-            final String numberTextLong = numberText + " " + getDeltaText(bgReading, is_stale) + " (" + niceTimeSinceBgReading(bgReading) + ")";
-            Log.d(TAG, "Returning complication text Long: " + numberTextLong);
+            UserError.Log.d(TAG, "LONG_TEXT Current complication state:" + state);
+            final ComplicationText numberTextLongComplication;
+            if (bgReading == null) {
+                numberTextLongComplication = plain(numberText + " " + getDeltaText(null, false));
+            } else if (is_stale) {
+                // Already reads "old <live ago>" via numberComplicationText - no need to repeat
+                // the elapsed time a second time in parentheses like the pre-live-text version did.
+                numberTextLongComplication = numberComplicationText;
+            } else {
+                numberTextLongComplication = liveAgo(bgReading, numberText + " " + getDeltaText(bgReading, false) + " (^1)");
+            }
+            Log.d(TAG, "Returning complication text Long, stale=" + is_stale);
 
             // Loop status by @gregorybel
             final String externalStatusString = PersistentStore.getString("remote-status-string");
             Log.d(TAG, "Returning complication status: " + externalStatusString);
 
-            UserError.Log.d(TAG, "LONG_TEXT Current complication state:" + state);
             complicationData = new LongTextComplicationData.Builder(
-                    plain(numberTextLong), plain(numberTextLong))
+                    numberTextLongComplication, numberTextLongComplication)
                     .setTitle(plain(externalStatusString != null ? externalStatusString : ""))
                     .setTapAction(complicationPendingIntent)
                     .build();
@@ -180,8 +209,8 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
             final float glucoseMgdl = bgReading != null ? (float) bgReading.getDg_mgdl() : RANGED_LOW_MGDL;
             final float clamped = Math.max(RANGED_LOW_MGDL, Math.min(RANGED_HIGH_MGDL, glucoseMgdl));
             complicationData = new RangedValueComplicationData.Builder(
-                    clamped, RANGED_LOW_MGDL, RANGED_HIGH_MGDL, plain(numberText))
-                    .setText(plain(numberText))
+                    clamped, RANGED_LOW_MGDL, RANGED_HIGH_MGDL, numberComplicationText)
+                    .setText(numberComplicationText)
                     .setTapAction(complicationPendingIntent)
                     .build();
         } else {
@@ -226,13 +255,18 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
         return new PlainComplicationText.Builder(text).build();
     }
 
-    private static String niceTimeSinceBgReading(BgReading bgReading) {
-        return bgReading != null ? JoH.niceTimeSince(bgReading.timestamp).replaceAll(" ", "").replaceAll("(^[0-9]+[a-zA-Z])[a-zA-Z]*$", "$1") : "";
+    // surroundingText must contain the literal placeholder "^1", which the render system replaces
+    // with the live-formatted elapsed time (e.g. "2m") computed from bgReading's timestamp.
+    private static ComplicationText liveAgo(BgReading bgReading, String surroundingText) {
+        return new TimeDifferenceComplicationText.Builder(
+                TimeDifferenceStyle.SHORT_SINGLE_UNIT,
+                new CountUpTimeReference(Instant.ofEpochMilli(bgReading.timestamp)))
+                .setText(surroundingText)
+                .build();
     }
 
     private static String getDeltaText(BgReading bgReading, boolean is_stale) {
-        final boolean doMgdl = Pref.getString("units", "mgdl").equals("mgdl");
-        return (!is_stale ? (bgReading != null ? unitizedDeltaString(false, false, Home.get_follower(), doMgdl) : "null") : "");
+        return (!is_stale ? (bgReading != null ? bgReading.displayDelta(false, false) : "null") : "");
     }
 
     // Mirrors BaseWatchFace's isCollectorRunning check: true either because the watch has been

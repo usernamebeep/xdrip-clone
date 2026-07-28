@@ -20,7 +20,6 @@ import com.eveningoutpost.dexdrip.utilitymodels.Notifications;
 //import com.eveningoutpost.dexdrip.UtilityModels.pebble.PebbleUtil;
 //import com.eveningoutpost.dexdrip.UtilityModels.pebble.PebbleWatchSync;
 import com.eveningoutpost.dexdrip.utilitymodels.AlertPlayer;
-import com.eveningoutpost.dexdrip.utilitymodels.Pref;
 import com.eveningoutpost.dexdrip.utils.DexCollectionType;
 //import com.eveningoutpost.dexdrip.wearintegration.WatchUpdaterService;
 
@@ -34,6 +33,10 @@ public class MissedReadingService extends IntentService {
     int otherAlertSnooze;
     private final static String TAG = MissedReadingService.class.getSimpleName();
     private static int aggressive_backoff_timer = 120;
+    // Mirrors Notifications.autoStartedWearCollector's start/stop pair - tracks whether this
+    // watchdog (as opposed to the user or force_wearG5) is the one that started the collector, so
+    // it can be stopped again once fresh data resumes instead of running indefinitely.
+    private static volatile boolean aggressiveAutoStartedCollector = false;
     public MissedReadingService() {
         super("MissedReadingService");
     }
@@ -67,22 +70,33 @@ public class MissedReadingService extends IntentService {
             }
         }*/
 
-        // Mirrors the same fix on the phone's MissedReadingService: skip this watchdog when
-        // enable_wearG5=true and force_wearG5=false, i.e. the phone has been left as the
-        // intentional exclusive collector - without this, the watch would aggressively restart
-        // its own collector whenever it notices stale data, fighting the phone for the
-        // transmitter's single BLE connection slot instead of staying out of the way.
-        final boolean phoneIsExclusiveCollector = Pref.getBooleanDefaultFalse("enable_wearG5")
-                && !Pref.getBooleanDefaultFalse("force_wearG5");
-        if (!phoneIsExclusiveCollector && (prefs.getBoolean("aggressive_service_restart", false) || DexCollectionType.isFlakey())) {
-            if (!BgReading.last_within_millis(stale_millis) && Sensor.isActive() && (!getLocalServiceCollectingState())) {
+        // Home.get_forced_wear() (enable_wearG5 && force_wearG5) requires BOTH that the user has
+        // opted into wear-side collection AND that the watch is *currently* the designated
+        // collector. Gating on enable_wearG5 alone (as a previous fix here did, to stop the
+        // watchdog running when the feature was entirely off) reintroduced the opposite problem:
+        // for DexcomG5 (DexCollectionType.isFlakey()==true unconditionally) this watchdog fires
+        // any time the watch's own local reading looks stale, with no check that the phone is
+        // already collecting fine - meaning it would fight the phone for the transmitter's single
+        // BLE connection slot during completely normal operation, any time the watch's local sync
+        // merely lagged the phone's. Gating on the combined flag keeps this watchdog to its actual
+        // job - keeping the watch's OWN collector alive once force_wearG5 has handed it that duty
+        // - without duplicating/racing the proper phone-unreachable handoff in checkAutoWearTakeover().
+        if (Home.get_forced_wear() && (prefs.getBoolean("aggressive_service_restart", false) || DexCollectionType.isFlakey())) {
+            final boolean stale = !BgReading.last_within_millis(stale_millis);
+            if (stale && Sensor.isActive() && (!getLocalServiceCollectingState())) {
                 if (JoH.ratelimit("aggressive-restart", aggressive_backoff_timer)) {
                     Log.e(TAG, "Aggressively restarting collector service due to lack of reception: backoff: "+aggressive_backoff_timer);
                     if (aggressive_backoff_timer < 1200) aggressive_backoff_timer+=60;
+                    aggressiveAutoStartedCollector = true;
                     CollectionServiceStarter.startBtService(context);
                 } else {
                     aggressive_backoff_timer = 120; // reset
                 }
+            } else if (!stale && aggressiveAutoStartedCollector) {
+                Log.d(TAG, "Fresh BG data resumed - stopping the watchdog-started fallback collector");
+                aggressiveAutoStartedCollector = false;
+                aggressive_backoff_timer = 120; // reset for next time
+                CollectionServiceStarter.stopBtService(context);
             }
         }
         //Reminder.processAnyDueReminders();

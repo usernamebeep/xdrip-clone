@@ -206,8 +206,18 @@ public class Ob1G5StateMachine {
             if (p == null) {
                 UserError.Log.d(TAG, "Null value returned via plugin");
                 if (shortTxId()) {
+                    // aNext() only returns null once the keks plugin has fallen into its
+                    // unhandled "Unknown" state, which it only ever reaches from
+                    // receivedResponse()'s ChallengeReply case after the transmitter rejects our
+                    // auth (authenticated != 1) - i.e. the cached shared key is wrong. The plugin
+                    // already wipes its own in-memory key on that path, but onServicesDiscovered()
+                    // reloads the same still-on-disk (rejected) key via setPersistence(2, ...) on
+                    // every subsequent reconnect, so without also clearing the on-disk cache here
+                    // every retry keeps reusing the same rejected key and fails identically forever
+                    // instead of falling back to a fresh certificate-based re-pair.
                     UserError.Log.d(TAG, "Attempting state reset");
                     parent.resetSomeInternalState();
+                    Ob1G5CollectionService.clearKeks();
                 }
                 return;
             }

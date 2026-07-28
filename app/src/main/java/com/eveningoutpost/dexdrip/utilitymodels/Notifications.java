@@ -607,7 +607,7 @@ public class Notifications extends IntentService {
         final BestGlucose.DisplayGlucose dg = (use_best_glucose) ? BestGlucose.getDisplayGlucose() : null;
         final boolean use_color_in_notification = false; // could be preference option
         final SpannableString titleString = new SpannableString(lastReading == null ? "BG Reading Unavailable" : (dg != null) ? (dg.spannableString(dg.unitized + " " + dg.delta_arrow,use_color_in_notification))
-                : (lastReading.displayValue(mContext) + " " + lastReading.slopeArrow()));
+                : (lastReading.displayValue(mContext) + " " + lastReading.displaySlopeArrow()));
         if (!compact_persistent_notification) {
             b.setContentTitle(titleString)
                     .setContentText("xDrip Data collection service is running.")
@@ -650,7 +650,7 @@ public class Notifications extends IntentService {
                 b.setShowWhen(true);
 
                 final SpannableString deltaString = new SpannableString("Delta: " + ((dg != null) ? (dg.spannableString(dg.unitized_delta + (dg.from_plugin ? " " + context.getString(R.string.p_in_circle) : "")))
-                        : bgGraphBuilder.unitizedDeltaString(true, true)));
+                        : lastReading.displayDelta(true, true)));
 
                 b.setContentText(deltaString);
 
@@ -698,11 +698,11 @@ public class Notifications extends IntentService {
         // use a chip style notification if selected
         if (Build.VERSION.SDK_INT >= 36 && Pref.getBooleanDefaultFalse("ongoing_notification_aodchipstyle")) {
             final SpannableString deltaString = new SpannableString("Delta: " + ((dg != null) ? (dg.spannableString(dg.unitized_delta + (dg.from_plugin ? " " + context.getString(R.string.p_in_circle) : "")))
-                    : bgGraphBuilder.unitizedDeltaString(true, true)));
+                    : (lastReading != null ? lastReading.displayDelta(true, true) : "")));
 
             val critical = lastReading == null ? "None"
                     : ((dg != null) ? (dg.isStale() ? "---" : (dg.unitized + " " + dg.delta_arrow))
-                    : (lastReading.isStale() ? "---" : (lastReading.displayValue(mContext) + " " + lastReading.slopeArrow())));
+                    : (lastReading.isStale() ? "---" : (lastReading.displayValue(mContext) + " " + lastReading.displaySlopeArrow())));
             val extras = new Bundle();
             // TODO these two lines can be replaced when SDK build tools updated
             extras.putBoolean("android.requestPromotedOngoing", true);

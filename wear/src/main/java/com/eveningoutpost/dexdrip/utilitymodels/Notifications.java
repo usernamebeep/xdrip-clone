@@ -63,7 +63,6 @@ public class Notifications extends IntentService {
     public static final long[] lowAlertVibratePattern = {0, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50, 100, 50};
     public static boolean bg_notifications;
     public static boolean bg_persistent_high_alert_enabled;
-    public static boolean bg_ongoing;
     public static boolean bg_vibrate;
     public static boolean bg_lights;
     public static boolean bg_sound;
@@ -143,6 +142,13 @@ public class Notifications extends IntentService {
             // it inside the bg_notifications block below made the whole failover unreachable
             // unless the user separately opted into "always" BG alerts on the watch.
             checkPhoneDataStalenessFailover(context);
+            // Also must run regardless of bg_notifications: "show ongoing notification"
+            // (run_service_in_foreground) is an independent preference from watch alert mode, but
+            // its refresh used to live inside the bg_notifications-gated block below, so with
+            // watch_alert_mode="none" (the default) the notification content was only ever set
+            // once at foreground-service-start and never updated again on new readings.
+            ReadPerfs(context);
+            updateOngoingNotification(context);
             if (bg_notifications) {
                 //KS TODO ActivityRecognizedService.reStartActivityRecogniser(context);
 
@@ -150,7 +156,6 @@ public class Notifications extends IntentService {
                     ActivityRecognizedService.reStartActivityRecogniser(context);
                 }*/
 
-                ReadPerfs(context);
                 unclearReading = notificationSetter(context);
                 //ArmTimer(context, unclearReading);
                 //context.startService(new Intent(context, MissedReadingService.class));
@@ -191,7 +196,6 @@ public class Notifications extends IntentService {
         doMgdl = (prefs.getString("units", "mgdl").compareTo("mgdl") == 0);
         smart_snoozing = prefs.getBoolean("smart_snoozing", true);
         smart_alerting = prefs.getBoolean("smart_alerting", true);
-        bg_ongoing = prefs.getBoolean("run_service_in_foreground", false);
     }
 
 /*
@@ -353,16 +357,24 @@ public class Notifications extends IntentService {
  * *****************************************************************************************************************
  */
 
+    // Unlike on the phone, run_service_in_foreground doesn't control whether this notification
+    // exists on wear - ForegroundServiceStarter.shouldRunCollectorInForeground() is hardcoded true
+    // here (a foreground-service notification is mandatory or the collector gets killed by app-idle
+    // enforcement), so the notification with this ID is always visible regardless of that
+    // preference. Gating the refresh on bg_ongoing left it frozen at whatever BgReading was current
+    // when the service last started, for anyone with the preference off - update unconditionally
+    // instead so it actually tracks new readings like the complication does.
+    private void updateOngoingNotification(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+            final long end = System.currentTimeMillis() + (60000 * 5);
+            final long start = end - (60000 * 60 * 3) - (60000 * 10);
+            bgOngoingNotification(new BgGraphBuilder(context, start, end));
+        }
+    }
+
     // returns weather unclear bg reading was detected
     private boolean notificationSetter(Context context) {
         ReadPerfs(context);
-        final long end = System.currentTimeMillis() + (60000 * 5);
-        final long start = end - (60000 * 60 * 3) - (60000 * 10);
-        BgGraphBuilder bgGraphBuilder = new BgGraphBuilder(context, start, end);
-        //BgGraphBuilder bgGraphBuilder = new BgGraphBuilder(context);
-        if (bg_ongoing && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN)) {
-            bgOngoingNotification(bgGraphBuilder);
-        }
         if (prefs.getLong("alerts_disabled_until", 0) > new Date().getTime()) {
             Log.d("NOTIFICATIONS", "Notifications are currently disabled!!");
             return false;
@@ -607,8 +619,10 @@ public class Notifications extends IntentService {
         }
 
         final BgReading lastReading = BgReading.last(true);
+        // activeSlopeArrow() was tried here instead but reverted - see find_new_curve()'s fix for
+        // why its parabolic fit was numerically unstable.
         final String title = lastReading == null ? "xDrip collecting" : (lastReading.displayValue(context) + " " + lastReading.displaySlopeArrow());
-        final String content = lastReading == null ? "Watch is collecting glucose data directly" : bgGraphBuilder.unitizedDeltaString(true, true);
+        final String content = lastReading == null ? "Watch is collecting glucose data directly" : lastReading.displayDelta(true, true);
 
         return new NotificationCompat.Builder(context, ONGOING_CHANNEL_ID)
                 .setContentTitle(title)

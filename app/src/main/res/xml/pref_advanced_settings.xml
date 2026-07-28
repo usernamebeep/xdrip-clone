@@ -35,13 +35,11 @@
                     android:key="disable_wearG5_on_lowbattery"
                     android:summary="@string/pref_summary_disable_wearG5_on_lowbattery"
                     android:title="@string/pref_disable_wearG5_on_lowbattery" />
-                <SwitchPreference
+                <CheckBoxPreference
                     android:defaultValue="false"
                     android:dependency="force_wearG5"
                     android:key="disable_wearG5_on_missedreadings"
                     android:summary="@string/pref_summary_disable_wearG5_on_missedreadings"
-                    android:switchTextOff="@string/short_off_text_for_switches"
-                    android:switchTextOn="@string/short_on_text_for_switches"
                     android:title="@string/pref_disable_wearG5_on_missedreadings" />
                 <EditTextPreference
                     android:defaultValue="30"
@@ -1545,7 +1543,6 @@
                 </PreferenceScreen>
                 <CheckBoxPreference
                     android:defaultValue="false"
-                    android:dependency="engineering_mode"
                     android:key="engineering_mode"
                     android:summary="@string/allow_unsafe_settings"
                     android:title="@string/engineering_mode" />

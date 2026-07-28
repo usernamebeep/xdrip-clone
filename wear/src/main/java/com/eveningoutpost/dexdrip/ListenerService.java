@@ -1903,8 +1903,13 @@ public class ListenerService extends WearableListenerService {
             final double sgvDouble = entry.getDouble("sgvDouble", -1);
             final long timestamp = (long) entry.getDouble("timestamp", 0);
             final double slope = entry.getDouble("calculated_value_slope", 0);
+            // Only the entry that is actually the phone's current reading carries a non-zero
+            // dgMgdl (see WatchUpdaterService#dataMap) - older historical entries pass 0 here,
+            // which bgReadingInsertFromG5 treats as "don't touch dg_mgdl/dg_slope for this row".
+            final double dgMgdl = entry.getDouble("dgMgdl", 0);
+            final double dgSlope = entry.getDouble("dgSlope", 0);
             if (sgvDouble > 0 && timestamp > 0) {
-                if (BgReading.bgReadingInsertFromG5(sgvDouble, timestamp, "Phone Sync", slope) != null) {
+                if (BgReading.bgReadingInsertFromG5(sgvDouble, timestamp, "Phone Sync", slope, dgMgdl, dgSlope) != null) {
                     inserted++;
                 }
             }
@@ -1916,9 +1921,15 @@ public class ListenerService extends WearableListenerService {
         final double sgvDouble = dataMap.getDouble("sgvDouble", -1);
         final long timestamp = (long) dataMap.getDouble("timestamp", 0);
         final double slope = dataMap.getDouble("calculated_value_slope", 0);
+        // The phone's BestGlucose.getDisplayGlucose() value/slope for this reading - the exact
+        // figures the phone's own main screen and ongoing notification show. Persisting them onto
+        // the synced BgReading (see bgReadingInsertFromG5) means the watch's notification and
+        // complication read the same number instead of recomputing their own from raw readings.
+        final double dgMgdl = dataMap.getDouble("dgMgdl", 0);
+        final double dgSlope = dataMap.getDouble("dgSlope", 0);
         if (sgvDouble > 0 && timestamp > 0) {
             Sensor.createDefaultIfMissing();
-            final boolean saved = BgReading.bgReadingInsertFromG5(sgvDouble, timestamp, "Phone Sync", slope) != null;
+            final boolean saved = BgReading.bgReadingInsertFromG5(sgvDouble, timestamp, "Phone Sync", slope, dgMgdl, dgSlope) != null;
             Log.d(TAG, "saveSingleIncomingBg (" + context + ") saved=" + saved + " sgvDouble=" + sgvDouble + " timestamp=" + timestamp);
         }
     }
@@ -1934,7 +1945,7 @@ public class ListenerService extends WearableListenerService {
                 long bgTimestamp = last.timestamp;
                 Log.d(TAG, "resetDataToLatest last.timestamp=" + JoH.dateTimeText(bgTimestamp) + " last.calculated_value=" + last.calculated_value);
                 if (bgTimestamp > dmTimestamp) {
-                    dataMap(dataMap, last, mPrefs, new com.eveningoutpost.dexdrip.utilitymodels.BgGraphBuilder(context));
+                    dataMap(dataMap, last, mPrefs, new com.eveningoutpost.dexdrip.utilitymodels.BgGraphBuilder(context), context);
                     return true;
                 }
             }
@@ -1942,19 +1953,23 @@ public class ListenerService extends WearableListenerService {
         return false;
     }
 
-    private static void dataMap(DataMap dataMap, BgReading bg, SharedPreferences sPrefs, com.eveningoutpost.dexdrip.utilitymodels.BgGraphBuilder bgGraphBuilder) {//KS
+    private static void dataMap(DataMap dataMap, BgReading bg, SharedPreferences sPrefs, com.eveningoutpost.dexdrip.utilitymodels.BgGraphBuilder bgGraphBuilder, Context context) {//KS
         Log.d(TAG, "dataMap bgTimestamp=" + JoH.dateTimeText(bg.timestamp) + " calculated_value=" + bg.calculated_value);
         //Double highMark = Double.parseDouble(sPrefs.getString("highValue", "140"));
         //Double lowMark = Double.parseDouble(sPrefs.getString("lowValue", "60"));
         //int battery = BgSendQueue.getBatteryLevel(context.getApplicationContext());
-        dataMap.putString("sgvString", bgGraphBuilder.unitized_string(bg.calculated_value));
-        dataMap.putString("slopeArrow", bg.slopeArrow());
+        // displayValue()/displaySlopeArrow()/displayDelta() are the same single source of truth
+        // the complication and ongoing notification use (BgReading.java) - without this, this
+        // resend-to-watch-faces path could show a different number/arrow/delta than those other
+        // wear surfaces for the exact same reading.
+        dataMap.putString("sgvString", bg.displayValue(context));
+        dataMap.putString("slopeArrow", bg.displaySlopeArrow());
         dataMap.putDouble("timestamp", bg.timestamp); //TODO: change that to long (was like that in NW)
-        dataMap.putString("delta", bgGraphBuilder.unitizedDeltaString(true, true));
+        dataMap.putString("delta", bg.displayDelta(true, true));
         //dataMap.putString("battery", "" + battery);
-        dataMap.putLong("sgvLevel", sgvLevel(bg.calculated_value, sPrefs, bgGraphBuilder));
+        dataMap.putLong("sgvLevel", sgvLevel(bg.getDg_mgdl(), sPrefs, bgGraphBuilder));
         //dataMap.putInt("batteryLevel", (battery>=30)?1:0);
-        dataMap.putDouble("sgvDouble", bg.calculated_value);
+        dataMap.putDouble("sgvDouble", bg.getDg_mgdl());
         //dataMap.putDouble("high", inMgdl(highMark, sPrefs));
         //dataMap.putDouble("low", inMgdl(lowMark, sPrefs));
         //TODO: Add raw again
@@ -2908,14 +2923,18 @@ public class ListenerService extends WearableListenerService {
                 startActivity(permissionIntent);
             }
         }
-        // Enables app to handle 23+ (M+) style permissions.
-        // TODO isn't this a duplicate as permission intent new task is asynchronous?
-        mLocationPermissionApproved =
-                ActivityCompat.checkSelfPermission(
-                        getApplicationContext(),
-                        Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-        Log.d(TAG, "checkLocationPermissions mLocationPermissionApproved:" + mLocationPermissionApproved);
-        return mLocationPermissionApproved;
+        // Was re-checking ACCESS_COARSE_LOCATION here and returning that instead of the real
+        // result computed above - COARSE_LOCATION isn't even declared in wear's manifest (only
+        // ACCESS_FINE_LOCATION and the BLUETOOTH_SCAN/CONNECT runtime perms are), so
+        // checkSelfPermission() for it can never return PERMISSION_GRANTED. That made this method
+        // return false unconditionally, silently no-op'ing every startBtService() call gated on
+        // it (e.g. the force_wearG5-driven "phone out of range" takeover in
+        // ListenerService#checkAutoWearTakeover) even when the actual required permissions were
+        // granted - while callers that hit CollectionServiceStarter.startBtService() directly
+        // (the 15-min data-staleness failover, the MissedReadingService watchdog) were unaffected.
+        final boolean approved = mLocationPermissionApproved && bluetoothPermissionsApproved;
+        Log.d(TAG, "checkLocationPermissions mLocationPermissionApproved:" + approved);
+        return approved;
     }
 
     static boolean checkBluetoothPermissions(Context context) {

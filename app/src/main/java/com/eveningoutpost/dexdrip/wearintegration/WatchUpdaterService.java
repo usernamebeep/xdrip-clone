@@ -313,6 +313,10 @@ public class WatchUpdaterService extends WearableListenerService {
 
         if (change) {
             prefs.apply();
+            // Without this, flipping force_wearG5 (e.g. turning off watch collecting) only ever
+            // updated the phone's stored pref - nothing re-evaluated whether the phone should now
+            // start its own BT scan, so the phone silently never resumed looking for the sensor.
+            processConnect();
         } else if (!dex_txid.equals(mPrefs.getString("dex_txid", "default"))) {
             sendPrefSettings();
             processConnect();
@@ -1622,26 +1626,35 @@ public class WatchUpdaterService extends WearableListenerService {
 
         // TODO this is inefficent when we are called in a loop instead should be passed in or already stored in bgreading
         final BestGlucose.DisplayGlucose dg = BestGlucose.getDisplayGlucose(); // current best
+        // dg.timestamp == bg.timestamp means this particular reading (which may be an old entry
+        // from the historical resync loop) is the one dg actually describes - only then is it
+        // safe to use dg's fields, otherwise we'd stamp today's current-reading value onto an old
+        // reading. NB: bg.dg_mgdl (set only by BgReading.create()/postProcess()) is NOT a reliable
+        // guard here - G5-native collection inserts via bgReadingInsertFromG5() instead, which
+        // never calls postProcess(), so bg.dg_mgdl stays 0 even for the true latest reading.
+        final boolean useDg = dg != null && dg.timestamp == bg.timestamp;
 
+        dataMap.putString("sgvString", useDg ? dg.unitized : bgGraphBuilder.unitized_string(bg.calculated_value));
 
-        dataMap.putString("sgvString", dg != null && bg.dg_mgdl > 0 ? dg.unitized : bgGraphBuilder.unitized_string(bg.calculated_value));
-
-        dataMap.putString("slopeArrow", bg.slopeArrow());
+        // slopeArrow/dgMgdl/dgSlope are sourced from the same BestGlucose.DisplayGlucose object
+        // used by the phone's own Home screen and ongoing notification (BestGlucose.getDisplayGlucose())
+        // so the watch cannot show a different number/arrow/delta than the phone itself does.
+        dataMap.putString("slopeArrow", useDg ? dg.delta_arrow : bg.slopeArrow());
         dataMap.putDouble("timestamp", bg.timestamp); //TODO: change that to long (was like that in NW)
-        // matches bg.slopeArrow() (used by the phone's own Home/Notifications arrow display)
-        // exactly, so the watch's synced arrow can't diverge from what the phone itself shows.
         dataMap.putDouble("calculated_value_slope", bg.calculated_value_slope);
+        dataMap.putDouble("dgMgdl", useDg ? dg.mgdl : 0d);
+        dataMap.putDouble("dgSlope", useDg ? dg.slope : 0d);
 
         // This delta string only applies to the last reading even if we are processing historical data here
-        if (dg != null) {
+        if (useDg) {
             dataMap.putString("delta", dg.unitized_delta);
         } else {
             dataMap.putString("delta", bgGraphBuilder.unitizedDeltaString(true, true, true));
         }
         dataMap.putString("battery", "" + battery);
-        dataMap.putLong("sgvLevel", sgvLevel(bg.dg_mgdl > 0 ? bg.dg_mgdl : bg.calculated_value, sPrefs, bgGraphBuilder));
+        dataMap.putLong("sgvLevel", sgvLevel(useDg ? dg.mgdl : bg.calculated_value, sPrefs, bgGraphBuilder));
         dataMap.putInt("batteryLevel", (battery >= 30) ? 1 : 0);
-        dataMap.putDouble("sgvDouble", bg.dg_mgdl > 0 ? bg.dg_mgdl : bg.calculated_value);
+        dataMap.putDouble("sgvDouble", useDg ? dg.mgdl : bg.calculated_value);
         dataMap.putDouble("high", inMgdl(highMark, sPrefs));
         dataMap.putDouble("low", inMgdl(lowMark, sPrefs));
         dataMap.putInt("bridge_battery", mPrefs.getInt("bridge_battery", -1));//Used in DexCollectionService

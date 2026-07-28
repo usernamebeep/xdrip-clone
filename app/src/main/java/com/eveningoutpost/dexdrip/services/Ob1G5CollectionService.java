@@ -2243,6 +2243,14 @@ public class Ob1G5CollectionService extends G5BaseService {
             builder.append(state.getString());
             return new SpannableString(builder);
         } else {
+            // When force_wearG5 is active, shouldServiceRun() keeps this phone-side collector shut
+            // down entirely (the watch is the one actually connected to the transmitter) - so
+            // transmitterMAC here is just leftover/never-populated state from before the handoff,
+            // not a live "still searching" condition. Without this check, the Home screen showed
+            // "Searching for <txid>" indefinitely while the watch was successfully collecting.
+            if (Home.get_forced_wear()) {
+                return Span.colorSpan("Watch is collecting", NORMAL.color());
+            }
             if (usingNativeMode()) {
                 if (lastSensorState != null && lastSensorState != CalibrationState.Ok) {
                     if (!lastSensorState.sensorStarted() && isPendingStart()) {
