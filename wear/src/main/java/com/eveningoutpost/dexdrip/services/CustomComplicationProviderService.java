@@ -57,7 +57,7 @@ import java.time.Instant;
  */
 public class CustomComplicationProviderService extends ComplicationDataSourceService {
 
-    private static final String TAG = "ComplicationProvider";
+    private static final String TAG = "CompphonlicationProvider";
     private static final long STALE_MS = Constants.MINUTE_IN_MS * 15;
     private static final long FRESH_MS = Constants.MINUTE_IN_MS * 5;
     private static final float RANGED_LOW_MGDL = 70f;
@@ -140,9 +140,9 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
         // data (a new reading, or the system's own periodic poke) - it then sits frozen on the
         // watch face, so it can read "1m" when four minutes have actually gone by. A
         // TimeDifferenceComplicationText instead carries the reference timestamp itself, and the
-        // watch face render system recomputes/redraws the elapsed time locally (about once a
-        // minute) without ever calling back into this service - so it stays accurate with zero
-        // extra battery cost, independent of how often refresh() actually runs.
+        // watch face render system recomputes/redraws the elapsed m:ss time locally (as often as
+        // once a second, per STOPWATCH style) without ever calling back into this service - so it
+        // stays accurate with zero extra battery cost, independent of how often refresh() runs.
         final ComplicationText numberComplicationText = is_stale
                 ? liveAgo(bgReading, "old ^1")
                 : plain(numberText);
@@ -256,10 +256,12 @@ public class CustomComplicationProviderService extends ComplicationDataSourceSer
     }
 
     // surroundingText must contain the literal placeholder "^1", which the render system replaces
-    // with the live-formatted elapsed time (e.g. "2m") computed from bgReading's timestamp.
+    // with the live-formatted elapsed time computed from bgReading's timestamp. STOPWATCH renders
+    // as m:ss (h:mm:ss past an hour) and ticks every second - still driven by the OS render loop,
+    // not by this service, so it costs nothing extra over the old once-a-minute SHORT_SINGLE_UNIT.
     private static ComplicationText liveAgo(BgReading bgReading, String surroundingText) {
         return new TimeDifferenceComplicationText.Builder(
-                TimeDifferenceStyle.SHORT_SINGLE_UNIT,
+                TimeDifferenceStyle.STOPWATCH,
                 new CountUpTimeReference(Instant.ofEpochMilli(bgReading.timestamp)))
                 .setText(surroundingText)
                 .build();

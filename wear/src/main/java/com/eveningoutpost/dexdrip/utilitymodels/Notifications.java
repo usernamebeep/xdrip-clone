@@ -167,7 +167,7 @@ public class Notifications extends IntentService {
         } finally {
             if (wl.isHeld()) wl.release();
         }
-    }
+}
 
     public static void staticUpdateNotification() {
         try {
