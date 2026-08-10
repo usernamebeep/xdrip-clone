@@ -43,7 +43,6 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.util.Log;
-import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -55,10 +54,8 @@ import android.view.WindowManager;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.Interpolator;
-import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -324,15 +321,17 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
     public class MyViewHolder extends ActivityWithRecycler.MyViewHolder {
 
         RelativeLayout wholeBlock;
-        EditText title_text;
+        TextView title_text;
         TextView next_due_text, small_text;
+        ImageButton edit_button;
 
         public MyViewHolder(View view) {
             super(view);
             small_text = (TextView) view.findViewById(R.id.reminder_small_top_text);
-            title_text = (EditText) view.findViewById(R.id.reminder_title_text);
+            title_text = (TextView) view.findViewById(R.id.reminder_title_text);
             next_due_text = (TextView) view.findViewById(R.id.reminders_next_due_text);
             wholeBlock = (RelativeLayout) view.findViewById(R.id.reminder_whole_row_block);
+            edit_button = (ImageButton) view.findViewById(R.id.reminder_edit_button);
         }
     }
 
@@ -354,19 +353,6 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
                     .inflate(R.layout.reminder_list_row, parent, false);
 
             final MyViewHolder holder = new MyViewHolder(itemView);
-
-            holder.title_text.setOnEditorActionListener(new EditText.OnEditorActionListener() {
-                @Override
-                public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                    boolean handled = false;
-                    if (actionId == EditorInfo.IME_ACTION_DONE) {
-                        final int pos = holder.getAdapterPosition();
-                        reminders.get(pos).updateTitle(holder.title_text.getText().toString());
-                        notifyItemChanged(pos);
-                    }
-                    return handled;
-                }
-            });
 
             holder.title_text.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
@@ -391,6 +377,13 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
                 }
             });
 
+            holder.edit_button.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    showReminderDialog(null, reminders.get(holder.getAdapterPosition()), 0);
+                }
+            });
+
             return holder;
         }
 
@@ -409,18 +402,14 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
                 } else {
                     lastDetails += xdrip.getAppContext().getString(R.string.last) + " " + dateTimeText(reminder_item.last_fired);
                 }
-                lastDetails += " (x" + reminder_item.fired_times + ") " + xdrip.getAppContext().getString(R.string.next);
+                lastDetails += " (x" + reminder_item.fired_times + ")";
             }
-            String nextDetails = "";
-            if (reminder_item.enabled) {
-                if (Math.abs(msSince(reminder_item.next_due)) < Constants.DAY_IN_MS) {
-                    nextDetails += JoH.hourMinuteString(reminder_item.next_due);
-                } else {
-                    final String dstring = dateTimeText(reminder_item.next_due);
-                    nextDetails += dstring.substring(0, dstring.length() - 3); // remove seconds
-                }
+            if (lastDetails.isEmpty()) {
+                holder.small_text.setVisibility(View.GONE);
+            } else {
+                holder.small_text.setVisibility(View.VISIBLE);
+                holder.small_text.setText(lastDetails);
             }
-            holder.small_text.setText(lastDetails + " " + nextDetails);
 
             final long duein = Math.max(JoH.msTill(reminder_item.next_due), JoH.msTill(reminder_item.snoozed_till));
             holder.wholeBlock.setBackgroundColor(Color.TRANSPARENT);
@@ -435,7 +424,10 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
                         if (natural_due.matches("^[0-9]+.*")) {
                             natural_due = xdrip.getAppContext().getString(R.string.in) + " " + natural_due;
                         }
-                        firstpart = xdrip.getAppContext().getString(R.string.due) +" " + natural_due;
+                        final String nextTime = (Math.abs(msSince(reminder_item.next_due)) < Constants.DAY_IN_MS)
+                                ? JoH.hourMinuteString(reminder_item.next_due)
+                                : dateTimeText(reminder_item.next_due).substring(0, dateTimeText(reminder_item.next_due).length() - 3);
+                        firstpart = xdrip.getAppContext().getString(R.string.due) + " " + natural_due + " (" + nextTime + ")";
                     } else {
                         firstpart = xdrip.getAppContext().getString(R.string.due_uppercase) + " " + JoH.hourMinuteString(reminder_item.next_due);
                         holder.wholeBlock.setBackgroundColor(Color.parseColor("#660066"));
@@ -746,6 +738,21 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
         reloadList();
     }
 
+    private void confirmDeleteReminder(final Reminder reminder) {
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(R.string.confirm_delete)
+                .setMessage(String.format(xdrip.getAppContext().getString(R.string.delete_reminder_confirm_message), reminder.getTitle()));
+        builder.setPositiveButton(xdrip.getAppContext().getString(R.string.delete), new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialogInterface, int which) {
+                dismissDoppelgangerItem(reminder);
+                JoH.static_toast_long(xdrip.getAppContext().getString(R.string.toast_deleted) + " " + reminder.title);
+                reminder.delete();
+            }
+        });
+        builder.setNegativeButton(xdrip.getAppContext().getString(R.string.cancel), null);
+        builder.create().show();
+    }
+
     public synchronized void undoFromFloater(View v) {
         if (last_undo != null) {
             dismissDoppelgangerItem(last_undo);
@@ -940,17 +947,18 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
 
 
         reminderDaysEdt = (EditText) dialogView.findViewById(R.id.reminderRepeatDays);
-        final CheckBox repeatingCheckbox = (CheckBox) dialogView.findViewById(R.id.reminderRepeatcheckBox);
-        final CheckBox chimeOnlyCheckbox = (CheckBox) dialogView.findViewById(R.id.chimeonlycheckbox);
-        final CheckBox alternatingCheckbox = (CheckBox) dialogView.findViewById(R.id.alternatingcheckbox);
-        final CheckBox weekendsCheckbox = (CheckBox) dialogView.findViewById(R.id.weekEndsCheckbox);
-        final CheckBox weekdaysCheckbox = (CheckBox) dialogView.findViewById(R.id.weekDaysCheckbox);
-        final CheckBox megapriorityCheckbox = (CheckBox) dialogView.findViewById(R.id.highPriorityCheckbox);
-        final CheckBox homeOnlyCheckbox = (CheckBox) dialogView.findViewById(R.id.homeOnlyCheckbox);
-        final CheckBox speechCheckbox = (CheckBox) dialogView.findViewById(R.id.speakCheckbox);
-        final CheckBox graphIconCheckbox = (CheckBox) dialogView.findViewById(R.id.GraphIconCheckbox);
+        final CompoundButton repeatingCheckbox = (CompoundButton) dialogView.findViewById(R.id.reminderRepeatcheckBox);
+        final CompoundButton chimeOnlyCheckbox = (CompoundButton) dialogView.findViewById(R.id.chimeonlycheckbox);
+        final CompoundButton alternatingCheckbox = (CompoundButton) dialogView.findViewById(R.id.alternatingcheckbox);
+        final CompoundButton weekendsCheckbox = (CompoundButton) dialogView.findViewById(R.id.weekEndsCheckbox);
+        final CompoundButton weekdaysCheckbox = (CompoundButton) dialogView.findViewById(R.id.weekDaysCheckbox);
+        final CompoundButton megapriorityCheckbox = (CompoundButton) dialogView.findViewById(R.id.highPriorityCheckbox);
+        final CompoundButton homeOnlyCheckbox = (CompoundButton) dialogView.findViewById(R.id.homeOnlyCheckbox);
+        final CompoundButton speechCheckbox = (CompoundButton) dialogView.findViewById(R.id.speakCheckbox);
+        final CompoundButton graphIconCheckbox = (CompoundButton) dialogView.findViewById(R.id.GraphIconCheckbox);
 
         final ImageButton swapButton = (ImageButton) dialogView.findViewById(R.id.reminderSwapButton);
+        final View swapRow = dialogView.findViewById(R.id.reminderSwapRow);
 
 
         if (reminder == null) {
@@ -1018,14 +1026,14 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 alternateEditText.setVisibility(isChecked ? View.VISIBLE : View.GONE);
-                swapButton.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+                swapRow.setVisibility(isChecked ? View.VISIBLE : View.GONE);
                 final String insert = isChecked ? xdrip.getAppContext().getString(R.string.alternate_between_titles) + " " + JoH.niceTimeScalar(getPeriod(rbday, rbhour, rbweek)) : xdrip.getAppContext().getString(R.string.always_use_same_title);
                 JoH.static_toast_long(xdrip.getAppContext().getString(R.string.reminder_will) + " " + insert);
             }
         });
 
         alternateEditText.setVisibility(alternatingCheckbox.isChecked() ? View.VISIBLE : View.GONE);
-        swapButton.setVisibility(alternatingCheckbox.isChecked() ? View.VISIBLE : View.GONE);
+        swapRow.setVisibility(alternatingCheckbox.isChecked() ? View.VISIBLE : View.GONE);
 
         dialogBuilder.setTitle(((reminder == null) ? xdrip.getAppContext().getString(R.string.title_add_reminder) : xdrip.getAppContext().getString(R.string.title_edit_reminder)));
         //dialogBuilder.setMessage("Enter text below");
@@ -1100,6 +1108,13 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
 
             }
         });
+        if (reminder != null) {
+            dialogBuilder.setNeutralButton(xdrip.getAppContext().getString(R.string.delete), new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int whichButton) {
+                    confirmDeleteReminder(reminder);
+                }
+            });
+        }
         dialog = dialogBuilder.create();
         titleEditText.setInputType(InputType.TYPE_CLASS_TEXT);
         titleEditText.setOnFocusChangeListener(new View.OnFocusChangeListener() {
@@ -1144,7 +1159,7 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
     }
 
     // set the state of the alternating checkbox
-    private void maskAlternatingCheckbox(boolean state, CheckBox alternatingCheck) {
+    private void maskAlternatingCheckbox(boolean state, CompoundButton alternatingCheck) {
         if (state) {
             alternatingCheck.setEnabled(true);
         } else {

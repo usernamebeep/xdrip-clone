@@ -1,72 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:card_view="http://schemas.android.com/tools"
-    android:id="@+id/language_list_block"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
 
-    <androidx.cardview.widget.CardView
+    <RelativeLayout
+        android:id="@+id/reminder_whole_row_block"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="9dp"
-        card_view:cardElevation="4dp"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentStart="true"
-        app:cardBackgroundColor="@color/cardview_dark_background"
-        app:cardCornerRadius="5dp"
-        android:animateLayoutChanges="true">
+        android:background="?attr/selectableItemBackground"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp">
 
-        <RelativeLayout
-            android:id="@+id/reminder_whole_row_block"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent">
+        <ImageButton
+            android:id="@+id/reminder_edit_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_centerVertical="true"
+            android:layout_alignParentEnd="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/edit_reminder_desc"
+            app:srcCompat="@drawable/ic_mode_edit_grey_600_48dp" />
 
-            <EditText
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:text="@+id/reminder_title"
-                android:inputType="text|textNoSuggestions"
-                android:imeOptions="actionDone"
-                android:id="@+id/reminder_title_text"
-                android:layout_below="@+id/reminder_small_top_text"
-                android:layout_alignParentStart="true"
-                android:layout_alignParentEnd="true"
-                android:textColor="#e6ee9c"
-                android:layout_marginLeft="5dp"
-                android:textSize="18sp" />
+        <TextView
+            android:id="@+id/reminder_small_top_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_toStartOf="@+id/reminder_edit_button"
+            android:layout_marginBottom="4dp"
+            android:text="@string/id_reference"
+            android:textColor="#b3ffffff"
+            android:textIsSelectable="false"
+            android:textSize="11sp" />
 
-            <TextView
-                android:id="@+id/reminders_next_due_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_alignParentStart="true"
-                android:layout_below="@+id/reminder_title_text"
-                android:layout_marginBottom="6dp"
-                android:layout_marginLeft="10dp"
-                android:layout_marginTop="0dp"
-                android:text="@string/reminder_period"
-                android:textAppearance="?android:attr/textAppearanceSmall"
-                android:textColor="#a5d6a7"
-                android:textIsSelectable="false" />
+        <TextView
+            android:id="@+id/reminder_title_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/reminder_small_top_text"
+            android:layout_alignParentStart="true"
+            android:layout_toStartOf="@+id/reminder_edit_button"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="#e6ee9c"
+            android:textSize="18sp" />
 
-            <TextView
-                android:id="@+id/reminder_small_top_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_alignParentEnd="true"
-                android:layout_alignParentTop="true"
-                android:layout_marginBottom="-5dp"
-                android:layout_marginEnd="11dp"
-                android:text="@string/id_reference"
-                android:textAlignment="textEnd"
-                android:textColor="#b3ffffff"
-                android:textIsSelectable="false"
-                android:textSize="9sp" />
-        </RelativeLayout>
+        <TextView
+            android:id="@+id/reminders_next_due_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/reminder_title_text"
+            android:layout_alignParentStart="true"
+            android:layout_toStartOf="@+id/reminder_edit_button"
+            android:layout_marginTop="4dp"
+            android:text="@string/reminder_period"
+            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:textColor="#a5d6a7"
+            android:textIsSelectable="false" />
 
-    </androidx.cardview.widget.CardView>
+    </RelativeLayout>
 
-</RelativeLayout>
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?android:attr/listDivider" />
+
+</LinearLayout>

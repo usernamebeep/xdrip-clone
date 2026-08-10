@@ -1,16 +1,63 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:padding="10dp"
-    android:orientation="vertical"
-    android:weightSum="1">
+    android:layout_height="wrap_content">
 
-    <RelativeLayout
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp">
 
+        <!-- Message section -->
+
+        <TextView
+            style="@style/ReminderSectionHeader"
+            android:paddingTop="4dp"
+            android:text="@string/section_message" />
+
+        <EditText
+            android:id="@+id/reminder_edit_new"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/reminder_title"
+            android:inputType="text|textCapWords"
+            android:lines="2"
+            android:linksClickable="false"
+            android:maxLines="5"
+            android:minLines="1" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/alternating" />
+
+                <TextView
+                    style="@style/ReminderRowSummary"
+                    android:text="@string/summary_alternating" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/alternatingcheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
 
         <EditText
             android:id="@+id/reminder_edit_alt_title"
@@ -18,214 +65,399 @@
             android:layout_height="wrap_content"
             android:hint="@string/reminder_alternate_title"
             android:inputType="text|textCapWords"
-            android:lines="4"
+            android:lines="2"
             android:linksClickable="false"
             android:maxLines="5"
-            android:minLines="2"
-            android:visibility="visible" />
+            android:minLines="1" />
 
-        <EditText
-            android:id="@+id/reminder_edit_new"
-            android:layout_width="match_parent"
+        <LinearLayout
+            android:id="@+id/reminderSwapRow"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:hint="@string/reminder_title"
-            android:layout_below="@+id/reminder_edit_alt_title"
-            android:inputType="text|textCapWords"
-            android:lines="4"
-            android:linksClickable="false"
-            android:maxLines="5"
-            android:minLines="2" />
+            android:layout_gravity="end"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp">
+
+            <ImageButton
+                android:id="@+id/reminderSwapButton"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/swap_titles"
+                android:importantForAccessibility="no"
+                android:padding="2dp"
+                app:srcCompat="@drawable/ic_swap_vert_white_24dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:text="@string/swap_titles" />
+        </LinearLayout>
+
+        <View style="@style/alert_edit_divider" />
+
+        <!-- Repeat schedule section -->
+
+        <TextView
+            style="@style/ReminderSectionHeader"
+            android:text="@string/section_repeat_schedule" />
 
         <RadioGroup
             android:id="@+id/radioGroup"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:layout_below="@+id/reminder_edit_new"
-            android:layout_marginEnd="11dp">
+            android:orientation="horizontal">
 
             <RadioButton
                 android:id="@+id/reminderHourButton"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
-
-                android:layout_weight="1"
+                android:layout_marginEnd="16dp"
                 android:text="@string/hours" />
 
             <RadioButton
                 android:id="@+id/reminderDayButton"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
-
-                android:layout_weight="1"
+                android:layout_marginEnd="16dp"
                 android:checked="false"
                 android:text="@string/days" />
 
             <RadioButton
                 android:id="@+id/reminderWeekButton"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_centerVertical="true"
-
-                android:layout_weight="1"
                 android:text="@string/weeks" />
 
         </RadioGroup>
 
-        <EditText
-            android:id="@+id/reminderRepeatDays"
-            android:layout_width="20dp"
-            android:layout_height="wrap_content"
-            android:layout_alignEnd="@+id/reminderUpButton"
-            android:layout_below="@+id/reminder_edit_new"
-            android:layout_marginTop="26dp"
-
-            android:layout_toEndOf="@+id/reminderRepeatcheckBox"
-            android:ems="10"
-            android:gravity="center_vertical|center_horizontal"
-            android:inputType="number"
-            android:maxLength="3"
-            android:maxLines="1"
-            android:text="5"
-            android:textAlignment="center" />
-
-        <ImageButton
-            android:id="@+id/reminderUpButton"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/reminder_edit_new"
-            android:layout_marginEnd="7dp"
-            android:layout_toStartOf="@+id/radioGroup"
-            android:onClick="reminderUpButton"
-            app:srcCompat="@android:drawable/arrow_up_float" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="8dp">
 
-        <ImageButton
-            android:id="@+id/reminderDownButton"
-            android:layout_width="wrap_content"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="12dp"
+                android:text="@string/repeat_every" />
+
+            <Button
+                android:id="@+id/reminderDownButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:onClick="reminderDownButton"
+                android:padding="0dp"
+                android:text="−"
+                android:textSize="18sp" />
+
+            <EditText
+                android:id="@+id/reminderRepeatDays"
+                android:layout_width="44dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
+                android:ems="10"
+                android:gravity="center"
+                android:inputType="number"
+                android:maxLength="3"
+                android:maxLines="1"
+                android:text="5"
+                android:textAlignment="center" />
+
+            <Button
+                android:id="@+id/reminderUpButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:onClick="reminderUpButton"
+                android:padding="0dp"
+                android:text="+"
+                android:textSize="18sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignBottom="@+id/radioGroup"
-            android:layout_alignStart="@+id/reminderUpButton"
-            android:onClick="reminderDownButton"
-            app:srcCompat="@android:drawable/arrow_down_float" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
-        <CheckBox
-            android:id="@+id/reminderRepeatcheckBox"
-            android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/repeat" />
+
+                <TextView
+                    style="@style/ReminderRowSummary"
+                    android:text="@string/summary_repeat" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/reminderRepeatcheckBox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true" />
+        </LinearLayout>
+
+        <TextView
+            style="@style/ReminderRowSummary"
+            android:paddingTop="4dp"
+            android:text="@string/active_on" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignBottom="@+id/reminderDownButton"
-            android:layout_marginEnd="13dp"
-            android:layout_toStartOf="@+id/reminderDownButton"
-            android:checked="true"
-            android:text="@string/repeat" />
+            android:orientation="horizontal"
+            android:paddingTop="4dp"
+            android:paddingBottom="6dp">
 
-        <CheckBox
-            android:id="@+id/chimeonlycheckbox"
-            android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/weekdays" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/weekDaysCheckbox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:checked="true" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/weekends" />
+
+                <androidx.appcompat.widget.SwitchCompat
+                    android:id="@+id/weekEndsCheckbox"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:checked="true" />
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <View style="@style/alert_edit_divider" />
+
+        <!-- Alert options section -->
+
+        <TextView
+            style="@style/ReminderSectionHeader"
+            android:text="@string/section_alert_options" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/chime_only"
-            android:layout_marginStart="8dp"
-            android:layout_below="@+id/reminderUpButton"
-            android:layout_alignParentStart="true" />
-
-        <CheckBox
-            android:id="@+id/alternatingcheckbox"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/alternating"
-            android:layout_below="@+id/reminder_edit_new"
-            android:layout_alignStart="@+id/chimeonlycheckbox" />
-
-        <ImageButton
-            android:id="@+id/reminderSoundButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_below="@+id/reminder_edit_new"
-            android:layout_marginRight="5dp"
-            android:layout_toStartOf="@+id/reminderRepeatDays"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
             android:onClick="chooseReminderSound"
-            app:srcCompat="@drawable/ic_music_note_white_24dp" />
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
-        <ImageButton
-            android:id="@+id/reminderSwapButton"
-            android:layout_width="30dp"
+            <ImageButton
+                android:id="@+id/reminderSoundButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@android:color/transparent"
+                android:clickable="false"
+                android:focusable="false"
+                android:importantForAccessibility="no"
+                app:srcCompat="@drawable/ic_music_note_white_24dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/alert_sound_title" />
+
+                <TextView
+                    style="@style/ReminderRowSummary"
+                    android:text="@string/alert_sound_summary" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentTop="true"
-            android:layout_marginTop="6dp"
-            android:background="@android:color/transparent"
-            android:paddingBottom="2dp"
-            android:paddingLeft="2dp"
-            android:paddingTop="2dp"
-            app:srcCompat="@drawable/ic_swap_vert_white_24dp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-        <CheckBox
-            android:id="@+id/weekDaysCheckbox"
-            android:layout_marginLeft="10dp"
-            android:layout_width="wrap_content"
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/chime_only" />
+
+                <TextView
+                    style="@style/ReminderRowSummary"
+                    android:text="@string/summary_chime_only" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/chimeonlycheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/reminderRepeatcheckBox"
-            android:checked="true"
-            android:text="@string/weekdays" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
-        <CheckBox
-            android:id="@+id/weekEndsCheckbox"
-            android:layout_marginLeft="10dp"
-            android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/speak" />
+
+                <TextView
+                    style="@style/ReminderRowSummary"
+                    android:text="@string/summary_speak" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/speakCheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/reminderRepeatcheckBox"
-            android:layout_toEndOf="@+id/weekDaysCheckbox"
-            android:checked="true"
-            android:text="@string/weekends" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/graph_note" />
 
+                <TextView
+                    style="@style/ReminderRowSummary"
+                    android:text="@string/summary_graph_note" />
+            </LinearLayout>
 
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/GraphIconCheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
 
-        <CheckBox
-            android:id="@+id/GraphIconCheckbox"
-            android:layout_marginLeft="10dp"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/weekEndsCheckbox"
-            android:layout_alignParentStart="true"
-            android:checked="false"
-            android:text="@string/graph_note"/>
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
-        <CheckBox
-            android:id="@+id/speakCheckbox"
-            android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/at_home_only" />
+
+                <TextView
+                    style="@style/ReminderRowSummary"
+                    android:text="@string/summary_home_only" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/homeOnlyCheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/weekEndsCheckbox"
-            android:layout_marginLeft="10dp"
-            android:layout_toRightOf="@+id/GraphIconCheckbox"
-            android:checked="false"
-            android:text="@string/speak" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
-        <CheckBox
-            android:id="@+id/homeOnlyCheckbox"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@+id/GraphIconCheckbox"
-            android:layout_marginLeft="10dp"
-            android:layout_marginTop="3dp"
-            android:checked="false"
-            android:text="@string/at_home_only" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-        <CheckBox
-            android:id="@+id/highPriorityCheckbox"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="10dp"
-            android:layout_below="@+id/GraphIconCheckbox"
-            android:layout_toEndOf="@+id/homeOnlyCheckbox"
-            android:checked="false"
-            android:text="@string/mega_priority" />
-    </RelativeLayout>
+                <TextView
+                    style="@style/ReminderRowTitle"
+                    android:text="@string/mega_priority" />
 
+                <TextView
+                    style="@style/ReminderRowSummary"
+                    android:text="@string/summary_mega_priority" />
+            </LinearLayout>
 
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/highPriorityCheckbox"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
 
+    </LinearLayout>
 
-</LinearLayout>
+</ScrollView>

@@ -5,6 +5,27 @@
         <item name="android:layout_marginTop">16dp</item>
         <item name="android:background">?android:attr/listDivider</item>
     </style>
+    <style name="ReminderSectionHeader">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textColor">?attr/colorAccent</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="ReminderRowTitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">16sp</item>
+    </style>
+    <style name="ReminderRowSummary">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">?android:attr/textColorSecondary</item>
+        <item name="android:textSize">12sp</item>
+    </style>
         <style name="AppTheme" parent="Theme.AppCompat">
         <item name="android:windowBackground">@drawable/holo_background</item>
         <item name="android:actionBarStyle">@style/MyActionBar</item>
