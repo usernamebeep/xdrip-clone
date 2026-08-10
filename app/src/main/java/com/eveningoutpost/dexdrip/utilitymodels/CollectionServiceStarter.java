@@ -251,7 +251,7 @@ public class CollectionServiceStarter {
             if (prefs.getBoolean("wear_sync", false)) {//KS
                 boolean enable_wearG5 = prefs.getBoolean("enable_wearG5", false);
                 boolean force_wearG5 = prefs.getBoolean("force_wearG5", false);
-                startBackgroundServiceCompat(new Intent(xdrip.getAppContext(), WatchUpdaterService.class));
+                startPlainServiceCompat(WatchUpdaterService.class);
                 if (!enable_wearG5 || (enable_wearG5 && !force_wearG5)) { //don't start if Wear G5 Collector Service is active
                     startBtWixelService();
                 }
@@ -276,7 +276,7 @@ public class CollectionServiceStarter {
             if (prefs.getBoolean("wear_sync", false)) {//KS
                 boolean enable_wearG5 = prefs.getBoolean("enable_wearG5", false);
                 boolean force_wearG5 = prefs.getBoolean("force_wearG5", false);
-                startBackgroundServiceCompat(new Intent(context, WatchUpdaterService.class));
+                startPlainServiceCompat(new Intent(context, WatchUpdaterService.class));
                 if (!enable_wearG5 || (enable_wearG5 && !force_wearG5)) { //don't start if Wear G5 Collector Service is active
                     startBtShareService();
                 }
@@ -293,7 +293,7 @@ public class CollectionServiceStarter {
             if (prefs.getBoolean("wear_sync", false)) {//KS
                 boolean enable_wearG5 = prefs.getBoolean("enable_wearG5", false);
                 boolean force_wearG5 = prefs.getBoolean("force_wearG5", false);
-                startBackgroundServiceCompat(new Intent(context, WatchUpdaterService.class));
+                startPlainServiceCompat(new Intent(context, WatchUpdaterService.class));
                 if (!enable_wearG5 || (enable_wearG5 && !force_wearG5)) { //don't start if Wear G5 Collector Service is active
                     startBtG5Service();
                 } else {
@@ -318,7 +318,7 @@ public class CollectionServiceStarter {
             if (prefs.getBoolean("wear_sync", false)) {//KS
                 boolean enable_wearG5 = prefs.getBoolean("enable_wearG5", false);
                 boolean force_wearG5 = prefs.getBoolean("force_wearG5", false);
-                startBackgroundServiceCompat(new Intent(context, WatchUpdaterService.class));
+                startPlainServiceCompat(new Intent(context, WatchUpdaterService.class));
                 if (!enable_wearG5 || (enable_wearG5 && !force_wearG5)) { //don't start if Wear G5 Collector Service is active
                     startBtWixelService();
                 }
@@ -514,13 +514,22 @@ public class CollectionServiceStarter {
         }
     }
 
+    private void startPlainServiceCompat(final Class service) {
+        startPlainServiceCompat(new Intent(xdrip.getAppContext(), service));
+    }
+
     // WatchUpdaterService never calls Service.startForeground(), so starting it via
     // startForegroundService() (as startServiceCompat does) triggers a
-    // ForegroundServiceDidNotStartInTimeException / ANR a few seconds later. Use a plain
-    // background start for it instead.
-    private void startBackgroundServiceCompat(final Intent intent) {
-        Log.d(TAG, String.format("Starting background service: %s", intent.getComponent().getClassName()));
-        mContext.startService(intent);
+    // ForegroundServiceDidNotStartInTimeException / ANR a few seconds later. Use a plain,
+    // non-foreground start for it instead.
+    @SuppressWarnings("ConstantConditions")
+    private void startPlainServiceCompat(final Intent intent) {
+        try {
+            Log.d(TAG, String.format("Starting service: %s", intent.getComponent().getClassName()));
+            mContext.startService(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "Could not start service: " + e);
+        }
     }
 
 }
