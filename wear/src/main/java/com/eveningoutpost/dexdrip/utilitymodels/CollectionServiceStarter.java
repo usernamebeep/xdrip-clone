@@ -8,6 +8,8 @@ import android.content.SharedPreferences;
 import android.os.Environment;
 import android.preference.PreferenceManager;
 
+import com.eveningoutpost.dexdrip.Home;
+import com.eveningoutpost.dexdrip.ListenerService;
 import com.eveningoutpost.dexdrip.models.UserError.Log;
 //KS import com.eveningoutpost.dexdrip.services.DailyIntentService;
 import com.eveningoutpost.dexdrip.services.DexCollectionService;
@@ -174,7 +176,6 @@ public class CollectionServiceStarter {
             startBtShareService();
 
         } else if (isBTG5(collection_method)) {
-            Log.d("DexDrip", "Starting G5 collector");
             stopBtWixelService();
             //KS stopWifWixelThread();
             stopBtShareService();
@@ -186,7 +187,27 @@ public class CollectionServiceStarter {
             // skipped starting in exactly the one case that most needed it: enable_wearG5=true,
             // force_wearG5=true. That silently blocked every automatic recovery path (missed-reading
             // watchdog, app cold-start) from ever bringing the collector back once killed while forced.
-            startBtG5Service();
+            //
+            // But this method is also reached unconditionally from ConfigReceiver on every
+            // BOOT_COMPLETED / pushed pref change (via restartCollectionServiceBackground), with no
+            // caller-side check of enable_wearG5/force_wearG5 at all - unlike every other path that
+            // starts the G5 collector (ListenerService#processConnect, MissedReadingService), which
+            // already gate on Home.get_forced_wear() first. Without the same gate here, a
+            // phone-paired watch (wear_sync=true) that has never opted into wear-side collection
+            // still starts its own BLE scan for the transmitter on every reboot - and since the
+            // phone already holds the transmitter's one BLE connection slot, that scan can never
+            // succeed, so it just times out and retries forever. Confirmed via on-device
+            // batterystats: ~11 of 88 minutes spent holding the G5 scan/connect wakelocks
+            // (ob1-g5-scan-timeout_scan, xdrip-jam-g5-scan, jam-g5-pconnect) despite enable_wearG5
+            // being off, tracing back to exactly this call path.
+            if (prefs.getBoolean("wear_sync", false) && !Home.get_forced_wear()) {
+                Log.d("DexDrip", "Not starting G5 collector - phone is the designated collector (wear_sync=true, not force_wearG5)");
+                stopG5ShareService();
+                ListenerService.requestData(context);
+            } else {
+                Log.d("DexDrip", "Starting G5 collector");
+                startBtG5Service();
+            }
 
         } else if (isWifiandBTWixel(context) || isWifiandDexBridge()) {
             Log.d("DexDrip", "Starting wifi and bt wixel collector");
