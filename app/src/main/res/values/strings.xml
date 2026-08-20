@@ -1158,6 +1158,9 @@
     <string name="summary_mega_priority">Override silent mode and Do Not Disturb</string>
     <string name="alert_sound_title">Alert Sound</string>
     <string name="alert_sound_summary">Tap to choose the sound played for this reminder</string>
+    <string name="next_due_title">Next Due</string>
+    <string name="next_due_summary_tap_to_change">Tap to change the date and time</string>
+    <string name="reminder_last_fired_prefix">Last fired</string>
     <string name="swap_titles">Swap titles</string>
     <string name="edit_reminder_desc">Edit reminder</string>
     <string name="delete_reminder_confirm_message">Delete reminder \"%1$s\"? This cannot be undone.</string>

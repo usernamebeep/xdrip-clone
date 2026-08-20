@@ -6,6 +6,7 @@ package com.eveningoutpost.dexdrip;
 
 import static android.app.PendingIntent.FLAG_UPDATE_CURRENT;
 import static com.eveningoutpost.dexdrip.Home.SHOWCASE_REMINDER3;
+import static com.eveningoutpost.dexdrip.models.JoH.dateText;
 import static com.eveningoutpost.dexdrip.models.JoH.dateTimeText;
 import static com.eveningoutpost.dexdrip.models.JoH.hourMinuteString;
 import static com.eveningoutpost.dexdrip.models.JoH.msSince;
@@ -370,13 +371,6 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
                 }
             });
 
-            holder.small_text.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    askTime(holder.getAdapterPosition());
-                }
-            });
-
             holder.edit_button.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -397,12 +391,13 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
 
             String lastDetails = "";
             if (reminder_item.fired_times > 0) {
+                lastDetails += xdrip.getAppContext().getString(R.string.reminder_last_fired_prefix) + " ";
                 if (msSince(reminder_item.last_fired) < Constants.DAY_IN_MS) {
-                    lastDetails += xdrip.getAppContext().getString(R.string.last) + " " + JoH.hourMinuteString(reminder_item.last_fired);
+                    lastDetails += JoH.hourMinuteString(reminder_item.last_fired);
                 } else {
-                    lastDetails += xdrip.getAppContext().getString(R.string.last) + " " + dateTimeText(reminder_item.last_fired);
+                    lastDetails += dateTimeText(reminder_item.last_fired);
                 }
-                lastDetails += " (x" + reminder_item.fired_times + ")";
+                lastDetails += " (×" + reminder_item.fired_times + ")";
             }
             if (lastDetails.isEmpty()) {
                 holder.small_text.setVisibility(View.GONE);
@@ -995,6 +990,56 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
 
         maskAlternatingCheckbox(repeatingCheckbox.isChecked(), alternatingCheckbox);
 
+        // Next due date/time - lets you pick an explicit start time instead of accepting the
+        // "now + period" default, without disturbing that default when left untouched.
+        final View nextDueRow = dialogView.findViewById(R.id.reminderNextDueRow);
+        final TextView nextDueText = (TextView) dialogView.findViewById(R.id.reminderNextDueText);
+        final Calendar dueCalendar = Calendar.getInstance();
+        final boolean[] dueManuallySet = {false};
+        if (reminder != null) {
+            dueCalendar.setTimeInMillis(reminder.next_due);
+            nextDueText.setText(dateText(dueCalendar.getTimeInMillis()) + " " + hourMinuteString(dueCalendar.getTimeInMillis()));
+        } else {
+            dueCalendar.setTimeInMillis(tsl() + getPeriod(rbday, rbhour, rbweek));
+        }
+        nextDueRow.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                final boolean alsoAskDate = JoH.msTill(dueCalendar.getTimeInMillis()) > Constants.DAY_IN_MS;
+
+                final TimePickerFragment timePickerFragment = new TimePickerFragment();
+                timePickerFragment.setTime(dueCalendar.get(Calendar.HOUR_OF_DAY), dueCalendar.get(Calendar.MINUTE));
+                timePickerFragment.setTitle(xdrip.getAppContext().getString(R.string.title_what_time_day));
+                timePickerFragment.setTimeCallback(new ProfileAdapter.TimePickerCallbacks() {
+                    @Override
+                    public void onTimeUpdated(int newmins) {
+                        final int min = newmins % 60;
+                        final int hour = (newmins - min) / 60;
+                        dueCalendar.set(dueCalendar.get(Calendar.YEAR), dueCalendar.get(Calendar.MONTH), dueCalendar.get(Calendar.DAY_OF_MONTH), hour, min);
+                        dueManuallySet[0] = true;
+                        nextDueText.setText(dateText(dueCalendar.getTimeInMillis()) + " " + hourMinuteString(dueCalendar.getTimeInMillis()));
+                    }
+                });
+                timePickerFragment.show(Reminders.this.getFragmentManager(), "TimePicker");
+
+                if (alsoAskDate) {
+                    final DatePickerFragment datePickerFragment = new DatePickerFragment();
+                    datePickerFragment.setAllowFuture(true);
+                    datePickerFragment.setEarliestDate(tsl());
+                    datePickerFragment.setInitiallySelectedDate(dueCalendar.getTimeInMillis());
+                    datePickerFragment.setTitle(xdrip.getAppContext().getString(R.string.title_which_day));
+                    datePickerFragment.setDateCallback(new ProfileAdapter.DatePickerCallbacks() {
+                        @Override
+                        public void onDateSet(int year, int month, int day) {
+                            dueCalendar.set(year, month, day);
+                            dueManuallySet[0] = true;
+                            nextDueText.setText(dateText(dueCalendar.getTimeInMillis()) + " " + hourMinuteString(dueCalendar.getTimeInMillis()));
+                        }
+                    });
+                    datePickerFragment.show(Reminders.this.getFragmentManager(), "DatePicker");
+                }
+            }
+        });
 
         swapButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1075,6 +1120,11 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
                     new_reminder.homeonly = homeOnlyCheckbox.isChecked();
                     new_reminder.speak = speechCheckbox.isChecked();
                     new_reminder.graphicon = graphIconCheckbox.isChecked();
+
+                    if (dueManuallySet[0]) {
+                        new_reminder.next_due = dueCalendar.getTimeInMillis();
+                        new_reminder.snoozed_till = 0;
+                    }
 
 
                     if ((new_reminder.priority > MEGA_PRIORITY) && (!megapriorityCheckbox.isChecked())) {
@@ -1238,46 +1288,6 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
 
     ////
 
-
-    private void askTime(final int position) {
-        final Calendar calendar = Calendar.getInstance();
-        final Reminder reminder = reminders.get(position);
-        calendar.setTimeInMillis(reminder.next_due);
-
-        final TimePickerFragment timePickerFragment = new TimePickerFragment();
-        timePickerFragment.setTime(calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE));
-        timePickerFragment.setTitle(xdrip.getAppContext().getString(R.string.title_what_time_day));
-        timePickerFragment.setTimeCallback(new ProfileAdapter.TimePickerCallbacks() {
-            @Override
-            public void onTimeUpdated(int newmins) {
-                int min = newmins % 60;
-                int hour = (newmins - min) / 60;
-                calendar.set(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH), hour, min);
-                reminder.next_due = calendar.getTimeInMillis();
-                reminder.snoozed_till = 0; // reset this field
-                reminder.save();
-                freshen(reminder);
-            }
-        });
-        timePickerFragment.show(this.getFragmentManager(), "TimePicker");
-
-        // appears on top
-        if (JoH.msTill(reminder.next_due) > Constants.DAY_IN_MS) {
-            final DatePickerFragment datePickerFragment = new DatePickerFragment();
-            datePickerFragment.setAllowFuture(true);
-            datePickerFragment.setEarliestDate(tsl());
-            datePickerFragment.setInitiallySelectedDate(reminder.next_due);
-            datePickerFragment.setTitle(xdrip.getAppContext().getString(R.string.title_which_day));
-            datePickerFragment.setDateCallback(new ProfileAdapter.DatePickerCallbacks() {
-                @Override
-                public void onDateSet(int year, int month, int day) {
-                    calendar.set(year, month, day);
-
-                }
-            });
-            datePickerFragment.show(this.getFragmentManager(), "DatePicker");
-        }
-    }
 
     ////
 

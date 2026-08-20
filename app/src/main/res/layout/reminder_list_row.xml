@@ -26,22 +26,10 @@
             app:srcCompat="@drawable/ic_mode_edit_grey_600_48dp" />
 
         <TextView
-            android:id="@+id/reminder_small_top_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            android:layout_toStartOf="@+id/reminder_edit_button"
-            android:layout_marginBottom="4dp"
-            android:text="@string/id_reference"
-            android:textColor="#b3ffffff"
-            android:textIsSelectable="false"
-            android:textSize="11sp" />
-
-        <TextView
             android:id="@+id/reminder_title_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/reminder_small_top_text"
+            android:layout_alignParentTop="true"
             android:layout_alignParentStart="true"
             android:layout_toStartOf="@+id/reminder_edit_button"
             android:textAppearance="?android:attr/textAppearanceSmall"
@@ -60,6 +48,19 @@
             android:textAppearance="?android:attr/textAppearanceSmall"
             android:textColor="#a5d6a7"
             android:textIsSelectable="false" />
+
+        <TextView
+            android:id="@+id/reminder_small_top_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/reminders_next_due_text"
+            android:layout_alignParentStart="true"
+            android:layout_toStartOf="@+id/reminder_edit_button"
+            android:layout_marginTop="2dp"
+            android:text="@string/id_reference"
+            android:textColor="#80ffffff"
+            android:textIsSelectable="false"
+            android:textSize="11sp" />
 
     </RelativeLayout>
 
