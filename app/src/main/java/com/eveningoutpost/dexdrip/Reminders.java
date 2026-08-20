@@ -101,7 +101,6 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
 
     private static final String TAG = "Reminders";
     private static final int NOTIFICATION_ID = 765;
-    private static final String REMINDER_WAKEUP = "REMINDER_WAKEUP";
     private static final int MY_PERMISSIONS_REQUEST_STORAGE = 139;
     private static final int REQUEST_CODE_CHOOSE_FILE = 2;
     private static final int REQUEST_CODE_CHOOSE_RINGTONE = 55;
@@ -1218,16 +1217,6 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
         }
     }
 
-    private int getPositionFromReminderId(final int id) {
-        for (int i = 0; i < reminders.size(); i++) {
-            if (reminders.get(i).getId() == id) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-
     ////
     public static void doAlert(final Reminder reminder) {
         final PowerManager.WakeLock wl = JoH.getWakeLock("reminder-alert-wakeup", 20000);
@@ -1237,14 +1226,6 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
         }
         Log.d(TAG, "Scheduling alert reminder in 10 seconds time");
         // avoid conflicts with other notification alerts in first 10 seconds
-
-        JoH.runOnUiThreadDelayed(new Runnable() {
-            @Override
-            public void run() {
-                Log.d(TAG, "delayed wakeup firing");
-                startReminderWithExtra(REMINDER_WAKEUP, reminder.getId().toString());
-            }
-        }, 9000);
 
         JoH.runOnUiThreadDelayed(new Runnable() {
             @Override
@@ -1336,14 +1317,6 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
         valueAnimator.start();
     }
 
-    public static void startReminderWithExtra(String extra, String text) {
-        final Intent intent = new Intent(xdrip.getAppContext(), Reminders.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.putExtra(extra, text);
-        xdrip.getAppContext().startActivity(intent);
-    }
-
-
     public void processIncomingBundle(Bundle bundle) {
         final PowerManager.WakeLock wl = JoH.getWakeLock("reminder-bundler", 10000);
         if (bundle != null) {
@@ -1396,22 +1369,6 @@ public class Reminders extends ActivityWithRecycler implements SensorEventListen
                         wakeUpScreen(false);
                     }
                 });
-                if (bundle.getString(REMINDER_WAKEUP) != null) {
-                    try {
-                        recyclerView.smoothScrollToPosition(getPositionFromReminderId(Integer.parseInt(bundle.getString(REMINDER_WAKEUP))));
-                    } catch (IllegalArgumentException e) {
-                        Log.e(TAG, "Couldn't scroll to position");
-                    }
-                    JoH.runOnUiThreadDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            Log.d(TAG, "Checking for sensor: " + proximity);
-                            if (!proximity) {
-                                wakeUpScreen(true);
-                            }
-                        }
-                    }, 2000);
-                }
             }
         }
         // intentionally don't release wakelock for proximity detection etc
