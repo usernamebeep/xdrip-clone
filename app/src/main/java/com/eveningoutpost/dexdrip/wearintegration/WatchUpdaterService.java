@@ -31,6 +31,7 @@ import com.eveningoutpost.dexdrip.models.TransmitterData;
 import com.eveningoutpost.dexdrip.models.Treatments;
 import com.eveningoutpost.dexdrip.models.UserError;
 import com.eveningoutpost.dexdrip.R;
+import com.eveningoutpost.dexdrip.SnoozeActivity;
 import com.eveningoutpost.dexdrip.services.G5CollectionService;
 import com.eveningoutpost.dexdrip.services.Ob1G5CollectionService;
 import com.eveningoutpost.dexdrip.utilitymodels.AlertPlayer;
@@ -104,6 +105,7 @@ public class WatchUpdaterService extends WearableListenerService {
     private static final String ACTION_SEND_G5_QUEUE = WatchUpdaterService.class.getName().concat(".SendG5Queue");
     public static final String ACTION_DISABLE_FORCE_WEAR = WatchUpdaterService.class.getName().concat(".DisableForceWear");//KS
     public static final String ACTION_SNOOZE_ALERT = WatchUpdaterService.class.getName().concat(".SnoozeAlert");//KS
+    public static final String ACTION_SYNC_ALERTS_DISABLED = WatchUpdaterService.class.getName().concat(".SyncAlertsDisabled");
     public static final String ACTION_FORCE_WEAR_UPDATE = WatchUpdaterService.class.getName().concat(".ForceWearUpdate");
     private static final String WEARABLE_DATA_PATH = "/nightscout_watch_data";
     private static final String WEARABLE_RESEND_PATH = "/nightscout_watch_data_resend";
@@ -138,6 +140,8 @@ public class WatchUpdaterService extends WearableListenerService {
     private static final String WEARABLE_ALERTTYPE_DATA_PATH = "/xdrip_plus_watch_alerttype_data";//KS
     private static final String DATA_ITEM_RECEIVED_PATH = "/xdrip_plus_data-item-received";//KS
     private static final String WEARABLE_SNOOZE_ALERT = "/xdrip_plus_snooze_payload";
+    // Must match ListenerService.WEARABLE_ALERTS_DISABLED_PATH in the wear module
+    private static final String WEARABLE_ALERTS_DISABLED_PATH = "/xdrip_plus_alerts_disabled";
     public static final String WEARABLE_VOICE_PAYLOAD = "/xdrip_plus_voice_payload";
     public static final String WEARABLE_APPROVE_TREATMENT = "/xdrip_plus_approve_treatment";
     public static final String WEARABLE_CANCEL_TREATMENT = "/xdrip_plus_cancel_treatment";
@@ -892,6 +896,8 @@ public class WatchUpdaterService extends WearableListenerService {
                     } else if (ACTION_SNOOZE_ALERT.equals(action)) {
                         Log.d(TAG, "onStartCommand Action=" + ACTION_SNOOZE_ALERT + " repeatTime=" + intent.getStringExtra("repeatTime"));
                         sendRequestExtra(WEARABLE_SNOOZE_ALERT, "repeatTime", intent.getStringExtra("repeatTime"));
+                    } else if (ACTION_SYNC_ALERTS_DISABLED.equals(action)) {
+                        sendAlertsDisabled();
                     } else if (ACTION_SYNC_DB.equals(action)) {//KS
                         Log.d(TAG, "onStartCommand Action=" + ACTION_SYNC_DB + " Path=" + SYNC_DB_PATH);
                         sendNotification(SYNC_DB_PATH, "syncDB");
@@ -1592,6 +1598,17 @@ public class WatchUpdaterService extends WearableListenerService {
         dataMap.putDouble("timestamp", System.currentTimeMillis());
         dataMap.putBoolean(key, value);//"externalStatusString"
         new SendToDataLayerThread(path, this).executeOnExecutor(xdrip.executor, dataMap);
+    }
+
+    // Absolute timestamps rather than durations, so a delayed delivery doesn't extend the disable period
+    private void sendAlertsDisabled() {
+        final DataMap dataMap = new DataMap();
+        dataMap.putDouble("timestamp", System.currentTimeMillis());
+        for (SnoozeActivity.SnoozeType type : SnoozeActivity.SnoozeType.values()) {
+            dataMap.putLong(type.getPrefKey(), mPrefs.getLong(type.getPrefKey(), 0));
+        }
+        Log.d(TAG, "sendAlertsDisabled " + dataMap);
+        new SendToDataLayerThread(WEARABLE_ALERTS_DISABLED_PATH, this).executeOnExecutor(xdrip.executor, dataMap);
     }
 
     private void sendRequestExtra(String path, String key, byte[] value) {

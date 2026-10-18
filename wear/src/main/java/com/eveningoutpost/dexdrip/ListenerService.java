@@ -28,6 +28,7 @@ import android.widget.Toast;
 import com.activeandroid.query.Select;
 import com.eveningoutpost.dexdrip.g5model.CalibrationState;
 import com.eveningoutpost.dexdrip.g5model.Ob1G5StateMachine;
+import com.eveningoutpost.dexdrip.models.ActiveBgAlert;
 import com.eveningoutpost.dexdrip.models.ActiveBluetoothDevice;
 import com.eveningoutpost.dexdrip.models.AlertType;
 import com.eveningoutpost.dexdrip.models.BgReading;
@@ -146,6 +147,9 @@ public class ListenerService extends WearableListenerService {
     private static final String WEARABLE_ACTIVEBTDEVICE_DATA_PATH = "/xdrip_plus_watch_activebtdevice_data";//KS
     private static final String WEARABLE_ALERTTYPE_DATA_PATH = "/xdrip_plus_watch_alerttype_data";//KS
     public static final String WEARABLE_SNOOZE_ALERT = "/xdrip_plus_snooze_payload";
+    // Must match WatchUpdaterService.WEARABLE_ALERTS_DISABLED_PATH in the phone app
+    private static final String WEARABLE_ALERTS_DISABLED_PATH = "/xdrip_plus_alerts_disabled";
+    private static final String[] ALERTS_DISABLED_PREF_KEYS = {"alerts_disabled_until", "low_alerts_disabled_until", "high_alerts_disabled_until"};
     private static final String DATA_ITEM_RECEIVED_PATH = "/xdrip_plus_data-item-received";//KS
     private static final String ACTION_RESEND = "com.dexdrip.stephenblack.nightwatch.RESEND_DATA";
     private static final String ACTION_SENDDATA = "com.dexdrip.stephenblack.nightwatch.SEND_DATA";
@@ -1510,6 +1514,11 @@ public class ListenerService extends WearableListenerService {
                 AlertPlayer.getPlayer().Snooze(xdrip.getAppContext(), snooze, true);
                 sendLocalToast(getResources().getString(R.string.alert_snoozed_by_phone), Toast.LENGTH_SHORT);
             }
+        } else if (path.equals(WEARABLE_ALERTS_DISABLED_PATH)) {
+            Log.d(TAG, "onMessageReceived WEARABLE_ALERTS_DISABLED_PATH=" + path);
+            if (dataMap != null) {
+                applyAlertsDisabled(dataMap);
+            }
         } else if (path.equals(SYNC_DB_PATH)) {//KS  || path.equals(RESET_DB_PATH)
             Log.d(TAG, "onMessageReceived SYNC_DB_PATH=" + path);
             final PowerManager.WakeLock wl = JoH.getWakeLock(getApplicationContext(), "watchlistener-SYNC_DB_PATH",120000);
@@ -2017,6 +2026,28 @@ public class ListenerService extends WearableListenerService {
     private static void receiveG5QueueData(DataMap dataMap) {
         final String queueData = dataMap.getString("queueData");
         Ob1G5StateMachine.injectQueueJson(queueData);
+    }
+
+    // Mirrors the phone's "Disable alerts" state - our own alert evaluation reads these prefs locally,
+    // and also stops any currently active alert of a type that is now disabled, as the phone does.
+    private void applyAlertsDisabled(DataMap dataMap) {
+        for (String key : ALERTS_DISABLED_PREF_KEYS) {
+            if (dataMap.containsKey(key)) {
+                Pref.setLong(key, dataMap.getLong(key));
+            }
+        }
+        Log.d(TAG, "applyAlertsDisabled " + dataMap);
+
+        if (ActiveBgAlert.getOnly() != null) {
+            final AlertType activeBgAlert = ActiveBgAlert.alertTypegetOnly();
+            final long now = JoH.tsl();
+            if (activeBgAlert != null && (Pref.getLong("alerts_disabled_until", 0) > now
+                    || (activeBgAlert.above && Pref.getLong("high_alerts_disabled_until", 0) > now)
+                    || (!activeBgAlert.above && Pref.getLong("low_alerts_disabled_until", 0) > now))) {
+                Log.d(TAG, "applyAlertsDisabled: stopping active alert " + activeBgAlert.name);
+                AlertPlayer.getPlayer().stopAlert(xdrip.getAppContext(), true, false);
+            }
+        }
     }
 
     private synchronized void syncPrefData(DataMap dataMap) {//KS

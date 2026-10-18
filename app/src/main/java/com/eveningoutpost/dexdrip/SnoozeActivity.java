@@ -26,7 +26,9 @@ import com.eveningoutpost.dexdrip.utilitymodels.BgGraphBuilder;
 import com.eveningoutpost.dexdrip.utilitymodels.Notifications;
 import com.eveningoutpost.dexdrip.utilitymodels.Pref;
 import com.eveningoutpost.dexdrip.utils.ActivityWithMenu;
+import com.eveningoutpost.dexdrip.wearintegration.WatchUpdaterService;
 
+import static com.eveningoutpost.dexdrip.Home.startWatchUpdaterService;
 import static com.eveningoutpost.dexdrip.xdrip.gs;
 
 public class SnoozeActivity extends ActivityWithMenu {
@@ -80,6 +82,15 @@ public class SnoozeActivity extends ActivityWithMenu {
             prefs.edit().putLong(SnoozeType.LOW_ALERTS.getPrefKey(), 0).apply();
         }
         recheckAlerts();
+        syncDisabledAlertsToWatch();
+    }
+
+    /**
+     * The watch evaluates its own alerts against its own copy of the *_alerts_disabled_until prefs,
+     * so any change here must be relayed or the watch keeps alerting while the phone is disabled.
+     */
+    public static void syncDisabledAlertsToWatch() {
+        startWatchUpdaterService(xdrip.getAppContext(), WatchUpdaterService.ACTION_SYNC_ALERTS_DISABLED, TAG);
     }
 
 
@@ -235,6 +246,7 @@ public class SnoozeActivity extends ActivityWithMenu {
         button.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 prefs.edit().putLong(snoozeType.getPrefKey(), 0).apply();
+                syncDisabledAlertsToWatch();
                 //this is needed to make sure that the missedreading alert will be rechecked, it might have to be raised
                 //and if not (ie no missed readings for long enough) then the alarm should be reset because it might have to recheck the missedreading status sooner
                 recheckAlerts();
