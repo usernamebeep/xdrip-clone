@@ -654,7 +654,6 @@ public class JoH {
         if (gson_instance == null) {
             gson_instance = new GsonBuilder()
                     .excludeFieldsWithoutExposeAnnotation()
-                    //.registerTypeAdapter(Date.class, new DateTypeAdapter())
                     // .serializeSpecialFloatingPointValues()
                     .create();
         }

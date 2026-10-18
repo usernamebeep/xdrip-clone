@@ -18,6 +18,7 @@ import com.activeandroid.query.Select;
 import com.activeandroid.util.SQLiteUtils;
 import com.eveningoutpost.dexdrip.GcmActivity;
 import com.eveningoutpost.dexdrip.Home;
+import com.eveningoutpost.dexdrip.alert.SensorExpiry;
 import com.eveningoutpost.dexdrip.g5model.DexSessionKeeper;
 import com.eveningoutpost.dexdrip.models.UserError.Log;
 import com.eveningoutpost.dexdrip.R;
@@ -36,7 +37,6 @@ import com.eveningoutpost.dexdrip.xdrip;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.Expose;
-import com.google.gson.internal.bind.DateTypeAdapter;
 import com.google.gson.reflect.TypeToken;
 
 import org.json.JSONException;
@@ -791,6 +791,11 @@ public class Treatments extends Model {
         if (!emptyString(mytreatment.notes) && mytreatment.notes.startsWith("-")) {
             BlueJayEntry.sendNotifyIfEnabled(mytreatment.notes);
         }
+        try {
+            SensorExpiry.evaluateReceivedNote(mytreatment.notes, mytreatment.timestamp);
+        } catch (Exception e) {
+            UserError.Log.wtf(TAG, "Error evaluating received note: " + e + " " + mytreatment.notes);
+        }
     }
 
     public static List<Treatments> latestForGraph(int number, double startTime) {
@@ -1404,7 +1409,6 @@ public class Treatments extends Model {
     public String toS() {
         Gson gson = new GsonBuilder()
                 .excludeFieldsWithoutExposeAnnotation()
-                .registerTypeAdapter(Date.class, new DateTypeAdapter())
                 .serializeSpecialFloatingPointValues()
                 .create();
         return gson.toJson(this);
