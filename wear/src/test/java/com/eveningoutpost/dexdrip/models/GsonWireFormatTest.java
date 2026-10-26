@@ -40,7 +40,7 @@ public class GsonWireFormatTest extends RobolectricTestWithConfig {
     /** An alert exactly as the phone's {@code AlertType.toS()} sends it, including {@code force_speaker}. */
     private static final String PHONE_ALERT =
             "{\"name\":\"High\",\"active\":false,\"volume\":0,\"vibrate\":false,\"light\":false,"
-                    + "\"override_silent_mode\":false,\"force_speaker\":false,\"predictive\":false,"
+                    + "\"override_silent_mode\":false,\"force_speaker\":false,\"no_sound\":false,\"predictive\":false,"
                     + "\"time_until_threshold_crossed\":0.0,\"above\":true,\"threshold\":180.0,\"all_day\":false,"
                     + "\"start_time_minutes\":0,\"end_time_minutes\":0,\"minutes_between\":0,\"default_snooze\":0,"
                     + "\"text\":\"High BG\",\"mp3_file\":\"content://alarm.mp3\",\"uuid\":\"alert-uuid\"}";
@@ -48,7 +48,7 @@ public class GsonWireFormatTest extends RobolectricTestWithConfig {
     /** An alert as the watch's own {@code AlertType.toS()} writes it. */
     private static final String WATCH_ALERT =
             "{\"name\":\"High\",\"active\":false,\"volume\":0,\"vibrate\":false,\"light\":false,"
-                    + "\"override_silent_mode\":false,\"predictive\":false,"
+                    + "\"override_silent_mode\":false,\"no_sound\":false,\"predictive\":false,"
                     + "\"time_until_threshold_crossed\":0.0,\"above\":true,\"threshold\":180.0,\"all_day\":false,"
                     + "\"start_time_minutes\":0,\"end_time_minutes\":0,\"minutes_between\":0,\"default_snooze\":0,"
                     + "\"text\":\"High BG\",\"mp3_file\":\"content://alarm.mp3\",\"uuid\":\"alert-uuid\"}";

@@ -80,6 +80,7 @@ public class EditAlertActivity extends ActivityWithMenu {
     private Button buttonPreSnooze;
     private CheckBox checkboxAllDay;
     private CheckBox checkboxVibrate;
+    private CheckBox checkboxSound;
     private CheckBox checkboxDisabled;
 
     private LinearLayout layoutTimeBetween;
@@ -161,6 +162,7 @@ public class EditAlertActivity extends ActivityWithMenu {
 
         checkboxAllDay = (CheckBox) findViewById(R.id.check_alert_time);
         checkboxVibrate = (CheckBox) findViewById(R.id.check_vibrate);
+        checkboxSound = (CheckBox) findViewById(R.id.check_sound);
         checkboxDisabled = (CheckBox) findViewById(R.id.view_alert_check_disable);
 
         layoutTimeBetween = (LinearLayout) findViewById(R.id.time_between);
@@ -195,6 +197,7 @@ public class EditAlertActivity extends ActivityWithMenu {
 
             checkboxAllDay.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
             checkboxVibrate.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
+            checkboxSound.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
             checkboxDisabled.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
 
             viewTimeStart.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
@@ -207,6 +210,7 @@ public class EditAlertActivity extends ActivityWithMenu {
             ((TextView) findViewById(R.id.view_alert_threshold)).setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
             ((TextView) findViewById(R.id.view_alert_default_snooze)).setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
             ((TextView) findViewById(R.id.view_alert_mp3_file)).setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
+            ((TextView) findViewById(R.id.view_alert_sound)).setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
             ((TextView) findViewById(R.id.view_alert_time)).setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
             ((TextView) findViewById(R.id.view_alert_time_between)).setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
             ((TextView) findViewById(R.id.view_alert_disable)).setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
@@ -230,6 +234,7 @@ public class EditAlertActivity extends ActivityWithMenu {
             above = Boolean.parseBoolean(getExtra(savedInstanceState, "above", null));
             checkboxAllDay.setChecked(true);
             checkboxVibrate.setChecked(true);
+            checkboxSound.setChecked(true);
             checkboxDisabled.setChecked(false);
             checkboxOverrideSilent.setChecked(true);
             checkboxForceSpeaker.setChecked(true);
@@ -263,6 +268,7 @@ public class EditAlertActivity extends ActivityWithMenu {
             alertThreshold.setText(unitsConvert2Disp(doMgdl, alertType.threshold));
             checkboxAllDay.setChecked(alertType.all_day);
             checkboxVibrate.setChecked(alertType.vibrate);
+            checkboxSound.setChecked(!alertType.no_sound);
             checkboxDisabled.setChecked(!alertType.active);
             checkboxOverrideSilent.setChecked(alertType.override_silent_mode);
             checkboxForceSpeaker.setChecked(alertType.force_speaker);
@@ -288,6 +294,7 @@ public class EditAlertActivity extends ActivityWithMenu {
                 buttonalertMp3.setEnabled(false);
                 checkboxAllDay.setEnabled(false);
                 checkboxVibrate.setEnabled(false);
+                checkboxSound.setEnabled(false);
                 checkboxOverrideSilent.setEnabled(false);
                 checkboxForceSpeaker.setEnabled(false);
                 reraise.setEnabled(false);
@@ -371,6 +378,7 @@ public class EditAlertActivity extends ActivityWithMenu {
     	textViews.add((TextView) findViewById(R.id.view_alert_time));
     	textViews.add((TextView) findViewById(R.id.view_alert_override_silent));
     	textViews.add((TextView) findViewById(R.id.view_alert_vibrate));
+    	textViews.add((TextView) findViewById(R.id.view_alert_sound));
     	
     	for (TextView tv : textViews) {
     		if(disabled) {
@@ -548,15 +556,16 @@ public class EditAlertActivity extends ActivityWithMenu {
                     return;
                 }
                 boolean vibrate = checkboxVibrate.isChecked();
+                boolean noSound = !checkboxSound.isChecked();
                 
                 boolean overrideSilentMode = checkboxOverrideSilent.isChecked();
                 boolean forceSpeaker = checkboxForceSpeaker.isChecked();
 
                 String mp3_file = audioPath;
                 if (uuid != null) {
-                    AlertType.update_alert(uuid, alertText.getText().toString(), above, threshold, allDay, alertReraise, mp3_file, timeStart, timeEnd, overrideSilentMode, forceSpeaker, defaultSnooze, vibrate, !disabled);
+                    AlertType.update_alert(uuid, alertText.getText().toString(), above, threshold, allDay, alertReraise, mp3_file, timeStart, timeEnd, overrideSilentMode, forceSpeaker, defaultSnooze, vibrate, noSound, !disabled);
                 }  else {
-                    AlertType.add_alert(null, alertText.getText().toString(), above, threshold, allDay, alertReraise, mp3_file, timeStart, timeEnd, overrideSilentMode, forceSpeaker, defaultSnooze, vibrate, !disabled);
+                    AlertType.add_alert(null, alertText.getText().toString(), above, threshold, allDay, alertReraise, mp3_file, timeStart, timeEnd, overrideSilentMode, forceSpeaker, defaultSnooze, vibrate, noSound, !disabled);
                 }
 
                 startWatchUpdaterService(mContext, WatchUpdaterService.ACTION_SYNC_ALERTTYPE, TAG);
@@ -939,6 +948,7 @@ public class EditAlertActivity extends ActivityWithMenu {
             return;
         }
         boolean vibrate = checkboxVibrate.isChecked();
+        final boolean noSound = !checkboxSound.isChecked();
         boolean overrideSilentMode = checkboxOverrideSilent.isChecked();
         boolean forceSpeaker = checkboxForceSpeaker.isChecked();
         String mp3_file = audioPath;
@@ -966,7 +976,7 @@ public class EditAlertActivity extends ActivityWithMenu {
             // over the Data Layer API (see AlertPlayer.isWatchAlertingNow), which blocks and is
             // not permitted on the main thread - matching how a real alert is triggered from
             // Notifications' IntentService background thread, not the UI thread.
-            new Thread(() -> AlertType.testAlert(name, above, finalThreshold, finalAllDay, 1, mp3_file, finalTimeStart, finalTimeEnd, finalOverrideSilentMode, finalForceSpeaker, finalDefaultSnooze, finalVibrate, mContext)).start();
+            new Thread(() -> AlertType.testAlert(name, above, finalThreshold, finalAllDay, 1, mp3_file, finalTimeStart, finalTimeEnd, finalOverrideSilentMode, finalForceSpeaker, finalDefaultSnooze, finalVibrate, noSound, mContext)).start();
         } catch (NullPointerException e) {
             JoH.static_toast_long("Snooze value is not a number - cannot test");
         }

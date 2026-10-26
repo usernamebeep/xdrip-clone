@@ -709,7 +709,9 @@ public class AlertPlayer {
                 builder.setFullScreenIntent(notificationIntent(context, new Intent(context, Home.class)), true);
             }
 
-            if (notSilencedDueToCall()) {
+            if (alert.no_sound) {
+                Log.d(TAG, "No sound as alert " + alert.name + " is set to not play sound");
+            } else if (notSilencedDueToCall()) {
                 if (overrideSilent || isLoudPhone(context)) {
                     playFile(context, alert.mp3_file, volumeFrac, forceSpeaker, overrideSilent, priority, tag);
                 } else if (pratelimit("silent-alert-log", 1200)) {
@@ -723,7 +725,7 @@ public class AlertPlayer {
         if (profile != ALERT_PROFILE_SILENT && alert.vibrate) {
             if (notSilencedDueToCall()) {
                 if (alert.override_silent_mode || (manager != null && manager.getRingerMode() != AudioManager.RINGER_MODE_SILENT)) {
-                    JoH.vibrateInternal(alert.above ? Notifications.vibratePattern : Notifications.lowAlertVibratePattern, priority, tag);
+                    JoH.vibrateInternal(alert.above ? Notifications.vibratePattern : Notifications.lowAlertVibratePattern, priority, tag, true);
                 }
             } else {
                 Log.i(TAG, "No vibration due to ongoing call");

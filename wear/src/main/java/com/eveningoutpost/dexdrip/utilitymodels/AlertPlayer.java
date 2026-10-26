@@ -9,12 +9,14 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import android.preference.PreferenceManager;
@@ -525,24 +527,39 @@ public class AlertPlayer {
     // already running (no extra startup latency), with AlertVibrationService as a guaranteed
     // fallback for when the collector happens to be stopped, so this stays reliable regardless
     // of BLE connection state.
-    private static void vibrateDirect(Context ctx, long[] pattern) {
+    // alarmUsage (the alert's override silent/DND setting) tags the vibration as an alarm so it
+    // still comes through while the watch is in Do Not Disturb.
+    private static void vibrateDirect(Context ctx, long[] pattern, boolean alarmUsage) {
         final Context foregroundCtx = DexCollectionService.getRunningForegroundContext();
         if (foregroundCtx != null) {
-            fireVibration(foregroundCtx, pattern);
+            fireVibration(foregroundCtx, pattern, alarmUsage);
             return;
         }
         try {
             final Intent intent = new Intent(ctx, AlertVibrationService.class);
             intent.putExtra(AlertVibrationService.EXTRA_PATTERN, pattern);
+            intent.putExtra(AlertVibrationService.EXTRA_ALARM_USAGE, alarmUsage);
             ctx.startForegroundService(intent);
         } catch (Exception e) {
             UserError.Log.e(TAG, "Failed to start AlertVibrationService, falling back to direct vibrate: " + e);
-            fireVibration(ctx, pattern);
+            fireVibration(ctx, pattern, alarmUsage);
         }
     }
 
-    @SuppressWarnings("deprecation")
-    private static void fireVibration(Context ctx, long[] pattern) {
+    // Same waveform as the plain vibrate(pattern, -1) used before, optionally tagged as an alarm.
+    public static void vibrateWithUsage(Vibrator vibrator, long[] pattern, boolean alarmUsage) {
+        final VibrationEffect effect = VibrationEffect.createWaveform(pattern, -1);
+        if (alarmUsage) {
+            vibrator.vibrate(effect, new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build());
+        } else {
+            vibrator.vibrate(effect);
+        }
+    }
+
+    private static void fireVibration(Context ctx, long[] pattern, boolean alarmUsage) {
         // A PARTIAL_WAKE_LOCK keeps the CPU running through this call regardless of screen/ambient
         // state - without it, vibration was only reliably felt when the screen happened to already
         // be on (e.g. from a wrist-raise or tap), since the CPU could otherwise be power-gated
@@ -551,7 +568,7 @@ public class AlertPlayer {
         try {
             final Vibrator vibrator = getVibrator(ctx);
             if (vibrator == null || !vibrator.hasVibrator()) return;
-            vibrator.vibrate(pattern, -1);
+            vibrateWithUsage(vibrator, pattern, alarmUsage);
         } catch (Exception e) {
             UserError.Log.e(TAG, "vibrateDirect failed: " + e);
         } finally {
@@ -583,8 +600,10 @@ public class AlertPlayer {
         NotificationManager mNotifyMgr = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         //mNotifyMgr.cancel(Notifications.exportAlertNotificationId); // this appears to confuse android wear version 2.0.0.141773014.gms even though it shouldn't - can we survive without this?
         mNotifyMgr.notify(Notifications.exportAlertNotificationId, builder.build());
-        vibrateDirect(ctx, alert.above ? Notifications.vibratePattern : Notifications.lowAlertVibratePattern);
-        if (Pref.getBooleanDefaultFalse("alert_use_sounds")) {
+        if (alert.vibrate) {
+            vibrateDirect(ctx, alert.above ? Notifications.vibratePattern : Notifications.lowAlertVibratePattern, overrideSilent);
+        }
+        if (!alert.no_sound && Pref.getBooleanDefaultFalse("alert_use_sounds")) {
             try {
                 if (JoH.ratelimit("wear-alert-sound", 10)) {
                     JoH.playResourceAudio(R.raw.warning);

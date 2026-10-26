@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.eveningoutpost.dexdrip.models.JoH;
 import com.eveningoutpost.dexdrip.models.UserError;
+import com.eveningoutpost.dexdrip.utilitymodels.AlertPlayer;
 import com.eveningoutpost.dexdrip.utilitymodels.Notifications;
 
 /**
@@ -32,6 +33,7 @@ public class AlertVibrationService extends Service {
 
     private static final String TAG = AlertVibrationService.class.getSimpleName();
     public static final String EXTRA_PATTERN = "pattern";
+    public static final String EXTRA_ALARM_USAGE = "alarm_usage";
     private static final String CHANNEL_ID = "xdrip_alert_vibration_service";
     private android.os.PowerManager.WakeLock wakeLock;
 
@@ -39,6 +41,7 @@ public class AlertVibrationService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForeground(Notifications.alertVibrationServiceNotificationId, buildNotification());
         final long[] pattern = (intent != null) ? intent.getLongArrayExtra(EXTRA_PATTERN) : null;
+        final boolean alarmUsage = intent != null && intent.getBooleanExtra(EXTRA_ALARM_USAGE, false);
         if (pattern != null) {
             long total = 400;
             for (long ms : pattern) total += ms;
@@ -53,7 +56,7 @@ public class AlertVibrationService extends Service {
             // still produced the wrong/default pattern on a real device (confirmed via real-device
             // testing), unlike an already-long-running foreground service's context. This delay
             // gives that promotion time to actually take effect before firing.
-            new Handler(Looper.getMainLooper()).postDelayed(() -> fire(pattern), 400);
+            new Handler(Looper.getMainLooper()).postDelayed(() -> fire(pattern, alarmUsage), 400);
         } else {
             stopSelf();
         }
@@ -83,12 +86,11 @@ public class AlertVibrationService extends Service {
                 .build();
     }
 
-    @SuppressWarnings("deprecation")
-    private void fire(long[] pattern) {
+    private void fire(long[] pattern, boolean alarmUsage) {
         try {
             final Vibrator vibrator = getVibrator();
             if (vibrator != null && vibrator.hasVibrator()) {
-                vibrator.vibrate(pattern, -1);
+                AlertPlayer.vibrateWithUsage(vibrator, pattern, alarmUsage);
             }
         } catch (Exception e) {
             UserError.Log.e(TAG, "AlertVibrationService fire failed: " + e);

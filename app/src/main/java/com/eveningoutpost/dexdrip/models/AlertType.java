@@ -61,6 +61,11 @@ public class AlertType extends Model {
     @Column(name = "force_speaker")
     public boolean force_speaker;
 
+    // Stored inverted so existing rows (column null -> false) keep playing their sound.
+    @Expose
+    @Column(name = "no_sound")
+    public boolean no_sound;
+
     @Expose
     @Column(name = "predictive")
     public boolean predictive;
@@ -125,7 +130,8 @@ public class AlertType extends Model {
                 "ALTER TABLE AlertType ADD COLUMN predictive INTEGER;",
                 "ALTER TABLE AlertType ADD COLUMN text TEXT;",
                 "ALTER TABLE AlertType ADD COLUMN force_speaker INTEGER;",
-                "ALTER TABLE AlertType ADD COLUMN time_until_threshold_crossed REAL;"
+                "ALTER TABLE AlertType ADD COLUMN time_until_threshold_crossed REAL;",
+                "ALTER TABLE AlertType ADD COLUMN no_sound INTEGER;"
               };
 
         for (String patch : patchup) {
@@ -297,6 +303,26 @@ public class AlertType extends Model {
             int snooze,
             boolean vibrate,
             boolean active) {
+        add_alert(uuid, name, above, threshold, all_day, minutes_between, mp3_file, start_time_minutes, end_time_minutes, override_silent_mode, force_speaker, snooze, vibrate, false, active);
+    }
+
+    public static void add_alert(
+            String uuid,
+            String name,
+            boolean above,
+            double threshold,
+            boolean all_day,
+            int minutes_between,
+            String mp3_file,
+            int start_time_minutes,
+            int end_time_minutes,
+            boolean override_silent_mode,
+            boolean force_speaker,
+            int snooze,
+            boolean vibrate,
+            boolean no_sound,
+            boolean active) {
+        fixUpTable();
         AlertType at = new AlertType();
         at.name = name;
         at.above = above;
@@ -312,6 +338,7 @@ public class AlertType extends Model {
         at.force_speaker = force_speaker;
         at.default_snooze = snooze;
         at.vibrate = vibrate;
+        at.no_sound = no_sound;
         at.save();
     }
 
@@ -329,6 +356,7 @@ public class AlertType extends Model {
             boolean force_speaker,
             int snooze,
             boolean vibrate,
+            boolean no_sound,
             boolean active) {
 
         fixUpTable();
@@ -352,6 +380,7 @@ public class AlertType extends Model {
         at.force_speaker = force_speaker;
         at.default_snooze = snooze;
         at.vibrate = vibrate;
+        at.no_sound = no_sound;
         at.save();
     }
     public static void remove_alert(String uuid) {
@@ -584,6 +613,7 @@ public class AlertType extends Model {
         boolean force_speaker,
         int snooze,
         boolean vibrate,
+        boolean no_sound,
         Context context) {
             AlertType at = new AlertType();
             at.name = name;
@@ -600,6 +630,7 @@ public class AlertType extends Model {
             at.force_speaker = force_speaker;
             at.default_snooze = snooze;
             at.vibrate = vibrate;
+            at.no_sound = no_sound;
             AlertPlayer.getPlayer().startAlert(context, false, at, "TEST", false);
     }
 
@@ -675,6 +706,7 @@ public class AlertType extends Model {
             Log.e(TAG, "Got null pointer exception: " + e);
         }
 
+        fixUpTable();
         try {
             for (AlertType alert : newAlerts) {
                 Log.e(TAG, "Saving alert " + alert.name);

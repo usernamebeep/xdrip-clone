@@ -55,6 +55,11 @@ public class AlertType extends Model {
     @Column(name = "override_silent_mode")
     public boolean override_silent_mode;
 
+    // Synced from the phone; stored inverted so rows from older phone versions keep sound on.
+    @Expose
+    @Column(name = "no_sound")
+    public boolean no_sound;
+
     @Expose
     @Column(name = "predictive")
     public boolean predictive;
@@ -132,7 +137,8 @@ public class AlertType extends Model {
                 "ALTER TABLE AlertType ADD COLUMN light INTEGER;",
                 "ALTER TABLE AlertType ADD COLUMN predictive INTEGER;",
                 "ALTER TABLE AlertType ADD COLUMN text TEXT;",
-                "ALTER TABLE AlertType ADD COLUMN time_until_threshold_crossed REAL;"
+                "ALTER TABLE AlertType ADD COLUMN time_until_threshold_crossed REAL;",
+                "ALTER TABLE AlertType ADD COLUMN no_sound INTEGER;"
         };
 
 

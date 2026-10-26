@@ -2371,6 +2371,7 @@ public class ListenerService extends WearableListenerService {
                             exists.active = data.active;
                             exists.volume = data.volume;
                             exists.vibrate = data.vibrate;
+                            exists.no_sound = data.no_sound;
                             exists.light = data.light;
                             exists.override_silent_mode = data.override_silent_mode;
                             exists.predictive = data.predictive;

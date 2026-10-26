@@ -365,6 +365,29 @@
                         android:paddingTop="14dp">
 
                         <TextView
+                            android:id="@+id/view_alert_sound"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:gravity="start"
+                            android:text="@string/play_sound_on_alert"
+                            android:textSize="16sp" />
+
+                        <CheckBox
+                            android:id="@+id/check_sound"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:orientation="horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:paddingTop="14dp">
+
+                        <TextView
                             android:id="@+id/view_alert_vibrate"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"

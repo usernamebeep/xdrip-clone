@@ -32,6 +32,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Point;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
@@ -1669,6 +1670,13 @@ public class JoH {
     }
 
     public static void vibrateInternal(long[] pattern, int priority, String tag) {
+        vibrateInternal(pattern, priority, tag, false);
+    }
+
+    // alarmUsage tags the vibration as an alarm: Android 12+ silently drops vibrations without
+    // an allowlisted usage when our process is in the background, and alarm usage also lets it
+    // through ringer silent / DND (callers decide whether that is wanted).
+    public static void vibrateInternal(long[] pattern, int priority, String tag, boolean alarmUsage) {
         int currentPriority = AlertPlayer.getPriority(AlertPlayer.activeTag);
 
         // Case 1: BLOCKING (New vibration is lower priority than the one currently active)
@@ -1686,7 +1694,15 @@ public class JoH {
         try {
             final Vibrator v = getVibrator();
             if (v != null && v.hasVibrator()) {
-                v.vibrate(VibrationEffect.createWaveform(pattern, -1));
+                final VibrationEffect effect = VibrationEffect.createWaveform(pattern, -1);
+                if (alarmUsage) {
+                    v.vibrate(effect, new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build());
+                } else {
+                    v.vibrate(effect);
+                }
             }
         } catch (Exception e) {
             UserError.Log.e(TAG, "Failed to vibrate: " + e);
